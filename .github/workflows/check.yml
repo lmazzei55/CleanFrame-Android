@@ -29,4 +29,5 @@ jobs:
       - run: npm run check:public
       - run: npx playwright install --with-deps chromium
       - run: npm run check:browser
+      - run: npm run check:android
       - run: npm run export:public

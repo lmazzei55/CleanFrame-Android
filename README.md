@@ -1,5 +1,7 @@
 # CleanFrame
 
+**Android TV fork:** This repository adds an Android APK with Netflix, HBO Max, YouTube, Paramount+, Apple TV, Prime Video, Peacock and Disney+ favorites. Start with the [Android guide](android/README.md). This first build runs as an ordinary app and keeps the stock Home button unchanged. Physical TCL validation is pending. Work is tracked in [issue #1](https://github.com/lmazzei55/CleanFrame-Android/issues/1). The original Samsung project and instructions follow below.
+
 A quieter home screen for Samsung The Frame. Your apps, a photograph and the time, with an interface made for the TV remote.
 
 ![CleanFrame browser preview using the bundled Manrope font](docs/images/cleanframe-dock.jpg)
