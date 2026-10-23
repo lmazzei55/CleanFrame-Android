@@ -44,7 +44,7 @@ public final class MainActivity extends Activity {
     private static boolean homePromptDeclined; // For this process only; a reboot asks again.
     private AlertDialog homePrompt;
     private final Runnable homeCheck = new Runnable() { @Override public void run() {
-        if (!resumed || homePromptDeclined || homePrompt != null || !HomeService.needsReenable(MainActivity.this)) return;
+        if (!resumed || homePromptDeclined || (homePrompt != null && homePrompt.isShowing()) || !HomeService.needsReenable(MainActivity.this)) return;
         homePrompt = new AlertDialog.Builder(MainActivity.this)
             .setTitle("Turn the Home button back on")
             .setMessage("After the TV restarts, TCL pauses CleanFrame’s Home button. In Accessibility, open CleanFrame Home button, turn it off, then turn it on again.")
