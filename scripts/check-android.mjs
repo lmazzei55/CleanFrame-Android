@@ -86,6 +86,12 @@ try {
   check(errors.length === 0, 'No browser errors: ' + errors.join(', '));
   await tv.screenshot({ path: root + '.local/qa/android-list-720.png' });
   await tv.close();
+  const dense = await preview.browser.newPage({ viewport: { width: 960, height: 540 }, deviceScaleFactor: 2, isMobile: true });
+  await dense.goto(preview.baseURL + '/home/?platform=android');
+  await dense.waitForFunction(() => window.ShoreQA?.ready());
+  const bounds = await dense.locator('#stage').boundingBox();
+  check(bounds.width <= 960 && bounds.height <= 540, 'High-density viewport shows the whole stage');
+  await dense.close();
   console.log(count + ' Android checks passed. Native API is mocked; physical TV validation remains required.');
 } finally {
   await preview.close();

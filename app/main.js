@@ -1781,10 +1781,14 @@
     after();
   }
   function fit() {
-    var scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+    // Android WebView can expand innerWidth to the unscaled 1920px stage.
+    // clientWidth/clientHeight describe the visible layout viewport instead.
+    var width = document.documentElement.clientWidth || window.innerWidth;
+    var height = document.documentElement.clientHeight || window.innerHeight;
+    var scale = Math.min(width / 1920, height / 1080);
     stage.style.transform = 'scale(' + scale + ')';
-    stage.style.left = ((window.innerWidth - 1920 * scale) / 2) + 'px';
-    stage.style.top = ((window.innerHeight - 1080 * scale) / 2) + 'px';
+    stage.style.left = ((width - 1920 * scale) / 2) + 'px';
+    stage.style.top = ((height - 1080 * scale) / 2) + 'px';
   }
   function renderedAction(el) {
     return el.getClientRects().length > 0 && window.getComputedStyle(el).visibility !== 'hidden';
