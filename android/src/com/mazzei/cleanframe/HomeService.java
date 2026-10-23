@@ -1,9 +1,7 @@
 package com.mazzei.cleanframe;
 
-import android.Manifest;
 import android.accessibilityservice.AccessibilityService;
 import android.content.ComponentName;
-import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -40,34 +38,25 @@ public final class HomeService extends AccessibilityService {
 
     /**
      * TCL's boot guard refuses to bind this service after a reboot because CleanFrame is not running yet,
-     * and Android does not retry. While CleanFrame is open the bind is allowed, so re-announce the
-     * owner's existing choice. Needs WRITE_SECURE_SETTINGS granted once over ADB; never enables a
-     * service the owner has turned off, and preserves every other enabled service.
+     * and Android does not retry. While CleanFrame is open the bind is allowed, so briefly toggle this
+     * service component: the package change makes Android re-read and bind enabled services. Acts only
+     * when the owner still has the service enabled and it is not bound; needs no permission.
      */
-    static void rearm(Context context, Handler handler) {
-        if (connected || context.checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) != PackageManager.PERMISSION_GRANTED) return;
-        final ContentResolver resolver = context.getContentResolver();
-        final String key = Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES;
-        final String enabled = Settings.Secure.getString(resolver, key);
-        final String self = new ComponentName(context, HomeService.class).flattenToString();
-        if (enabled == null) return;
-        StringBuilder others = new StringBuilder();
+    static void rearm(final Context context, Handler handler) {
+        if (connected) return;
+        final ComponentName self = new ComponentName(context, HomeService.class);
+        String enabled = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
         boolean listed = false;
-        for (String entry : enabled.split(":")) {
+        if (enabled != null) for (String entry : enabled.split(":")) {
             ComponentName name = ComponentName.unflattenFromString(entry);
-            if (name != null && self.equals(name.flattenToString())) listed = true;
-            else if (!entry.isEmpty()) others.append(others.length() == 0 ? "" : ":").append(entry);
+            if (self.equals(name)) listed = true;
         }
         if (!listed) return;
-        try {
-            // An unchanged value is not broadcast, so remove and restore the entry to trigger a new bind.
-            Settings.Secure.putString(resolver, key, others.toString());
-            handler.postDelayed(new Runnable() { @Override public void run() {
-                try {
-                    Settings.Secure.putString(resolver, key, enabled);
-                    Settings.Secure.putInt(resolver, Settings.Secure.ACCESSIBILITY_ENABLED, 1);
-                } catch (SecurityException ignored) { /* Grant revoked meanwhile; owner can re-enable in Settings. */ }
-            } }, 500);
-        } catch (SecurityException ignored) { /* Not granted on this TV; the Accessibility toggle still works. */ }
+        final PackageManager pm = context.getPackageManager();
+        pm.setComponentEnabledSetting(self, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
+        // Restore the manifest default; a later rearm repeats this if the process dies in between.
+        handler.postDelayed(new Runnable() { @Override public void run() {
+            pm.setComponentEnabledSetting(self, PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, PackageManager.DONT_KILL_APP);
+        } }, 500);
     }
 }
