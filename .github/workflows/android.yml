@@ -1,0 +1,32 @@
+name: Android
+on:
+  push:
+    branches: [main, 'feat/**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK tools
+        uses: android-actions/setup-android@v4
+      - name: Install pinned Android SDK components
+        run: sdkmanager 'platforms;android-34' 'build-tools;34.0.0'
+      - name: Build and verify signed test APK
+        run: python3 scripts/build-android.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CleanFrame-Android-test
+          path: |
+            dist/CleanFrame-Android-test.apk
+            dist/CleanFrame-Android-test.apk.sha256
+          if-no-files-found: error
+          retention-days: 14
