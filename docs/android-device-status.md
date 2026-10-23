@@ -4,7 +4,7 @@ Target: TCL Smart TV Pro, Android TV 14. Device addresses, identifiers, screensh
 
 ## Verified
 
-- Latest tested source: `1b22384` (0.3.0) on `feat/android-tv`.
+- Latest tested source: `a7bdff8` (0.3.5) on `feat/android-tv`.
 - Nine requested apps are installed, including Apple TV and Tubi.
 - The APK installed with a persistent local signing key; a subsequent in-place update succeeded.
 - Physical screen capture confirms the full dock, clock and controls render correctly. `clientWidth/clientHeight` sizing fixed the WebView cropping; wide-viewport flags alone did not.
@@ -26,8 +26,10 @@ Target: TCL Smart TV Pro, Android TV 14. Device addresses, identifiers, screensh
 
 **Full reboot breaks it.** TCL's app-boot guard runs an "auto management" policy that resets the `AUTO_START` app-op to `ignore` on every boot and also dropped a `deviceidle` allow-list entry. With CleanFrame not running, `TclAppBoot` refuses the accessibility bind (`callee_does't_have_OP_AUTO_START_permission`), so the TV boots to Google TV and Home stays there. The Safety Guard app that some TCL firmware uses to make this permanent is not installed here. Re-enabling the service while CleanFrame is running binds it immediately, and it then lasts until the next reboot.
 
+Automatic recovery was tried and does not work on this firmware: an ADB-granted `WRITE_SECURE_SETTINGS` is revoked at boot, and toggling CleanFrame's own service component (each step waiting for its `PACKAGE_CHANGED` broadcast) never makes Android re-attempt the bind. 0.3.5 instead shows a dialog when CleanFrame opens and its Home service is enabled but not running. Verified across a reboot using only D-pad/OK: the dialog appeared, Open Accessibility opened Android TV Accessibility settings, turning CleanFrame Home button off and on bound the service, and Home from Netflix then returned to CleanFrame. With the service running, no dialog appears. An early build kept a stale dialog after Google TV's post-boot screen briefly covered CleanFrame, and OK then reached the launcher behind it; 0.3.5 closes the dialog on pause and shows it afresh.
+
 Not yet confirmed: how visible the brief Google TV frame is with a real remote.
 
 ## Pending
 
-Physical remote feel and Home flash, all nine streaming launches through the UI, a self-healing Home service after reboot, HDMI/CEC and casting. The last rapid-key app-launch probe was inconclusive. Keep the PR draft until device acceptance. Do not claim Home works after a reboot.
+Physical remote feel and Home flash, all nine streaming launches through the UI,  HDMI/CEC and casting. The last rapid-key app-launch probe was inconclusive. Keep the PR draft until device acceptance. After a reboot, Home works only once the owner re-enables the service from the prompt.

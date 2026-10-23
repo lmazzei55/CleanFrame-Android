@@ -63,7 +63,7 @@ adb -s DEVICE_SERIAL shell settings put secure enabled_accessibility_services co
 adb -s DEVICE_SERIAL shell settings put secure accessibility_enabled 1
 ```
 
-If other services were already enabled, append CleanFrame with a `:` separator instead of replacing them. Confirm `dumpsys accessibility` lists it under Bound services. On the tested TCL firmware the guard resets `AUTO_START` at every reboot, so after a reboot the service stays unbound until it is re-enabled while CleanFrame is running; standby and wake are unaffected. To recover, put the recorded value back (or turn the service off in Accessibility) and `appops set com.mazzei.cleanframe AUTO_START default`. Never disable Google TV or setup packages: that can leave the TV without a usable home and require a factory reset.
+If other services were already enabled, append CleanFrame with a `:` separator instead of replacing them. Confirm `dumpsys accessibility` lists it under Bound services. On the tested TCL firmware the guard resets `AUTO_START` at every reboot, so after a reboot the service stays unbound until it is re-enabled while CleanFrame is running; standby and wake are unaffected. When CleanFrame opens in that state it shows a dialog that opens Accessibility settings, where turning CleanFrame Home button off and on again restores it. Android's confirmation warns that any accessibility service could read typed text; this one is configured without window content or key access. To recover, put the recorded value back (or turn the service off in Accessibility) and `appops set com.mazzei.cleanframe AUTO_START default`. Never disable Google TV or setup packages: that can leave the TV without a usable home and require a factory reset.
 
 ## Physical acceptance
 
