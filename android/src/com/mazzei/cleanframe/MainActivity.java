@@ -10,6 +10,8 @@ import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.view.KeyEvent;
 import android.view.View;
@@ -36,6 +38,7 @@ public final class MainActivity extends Activity {
     private static final String START = "https://" + HOST + "/assets/ui/index.html";
     private WebView web;
     private boolean resumed;
+    private final Handler main = new Handler(Looper.getMainLooper());
     // Brand mappings are hints; a target must also resolve to an installed TV launch activity.
     private static final String[][] BRANDS = {
         {"netflix", "com.netflix.ninja"},
@@ -131,6 +134,7 @@ public final class MainActivity extends Activity {
     private void js(String script) { if (web != null) web.evaluateJavascript(script, null); }
     @Override protected void onResume() {
         super.onResume(); resumed = true; HomeService.stockChosen = false;
+        HomeService.rearm(this, main);
         if (web != null) { web.onResume(); js("window.FrameVisibility && window.FrameVisibility(true)"); }
     }
     @Override protected void onPause() {

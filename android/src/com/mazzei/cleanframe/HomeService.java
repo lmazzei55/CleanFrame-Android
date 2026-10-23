@@ -1,8 +1,14 @@
 package com.mazzei.cleanframe;
 
+import android.Manifest;
 import android.accessibilityservice.AccessibilityService;
 import android.content.ComponentName;
+import android.content.ContentResolver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.Handler;
+import android.provider.Settings;
 import android.view.accessibility.AccessibilityEvent;
 
 /**
@@ -15,6 +21,10 @@ public final class HomeService extends AccessibilityService {
     private static final String STOCK_HOME = STOCK_PACKAGE + ".home.HomeActivity";
     // Set when the owner deliberately opens the original home; cleared when CleanFrame is shown again.
     static volatile boolean stockChosen;
+    private static volatile boolean connected;
+
+    @Override protected void onServiceConnected() { connected = true; }
+    @Override public boolean onUnbind(Intent intent) { connected = false; return super.onUnbind(intent); }
 
     @Override public void onAccessibilityEvent(AccessibilityEvent event) {
         if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || stockChosen) return;
@@ -27,4 +37,37 @@ public final class HomeService extends AccessibilityService {
     }
 
     @Override public void onInterrupt() { /* No feedback to interrupt. */ }
+
+    /**
+     * TCL's boot guard refuses to bind this service after a reboot because CleanFrame is not running yet,
+     * and Android does not retry. While CleanFrame is open the bind is allowed, so re-announce the
+     * owner's existing choice. Needs WRITE_SECURE_SETTINGS granted once over ADB; never enables a
+     * service the owner has turned off, and preserves every other enabled service.
+     */
+    static void rearm(Context context, Handler handler) {
+        if (connected || context.checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) != PackageManager.PERMISSION_GRANTED) return;
+        final ContentResolver resolver = context.getContentResolver();
+        final String key = Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES;
+        final String enabled = Settings.Secure.getString(resolver, key);
+        final String self = new ComponentName(context, HomeService.class).flattenToString();
+        if (enabled == null) return;
+        StringBuilder others = new StringBuilder();
+        boolean listed = false;
+        for (String entry : enabled.split(":")) {
+            ComponentName name = ComponentName.unflattenFromString(entry);
+            if (name != null && self.equals(name.flattenToString())) listed = true;
+            else if (!entry.isEmpty()) others.append(others.length() == 0 ? "" : ":").append(entry);
+        }
+        if (!listed) return;
+        try {
+            // An unchanged value is not broadcast, so remove and restore the entry to trigger a new bind.
+            Settings.Secure.putString(resolver, key, others.toString());
+            handler.postDelayed(new Runnable() { @Override public void run() {
+                try {
+                    Settings.Secure.putString(resolver, key, enabled);
+                    Settings.Secure.putInt(resolver, Settings.Secure.ACCESSIBILITY_ENABLED, 1);
+                } catch (SecurityException ignored) { /* Grant revoked meanwhile; owner can re-enable in Settings. */ }
+            } }, 500);
+        } catch (SecurityException ignored) { /* Not granted on this TV; the Accessibility toggle still works. */ }
+    }
 }
