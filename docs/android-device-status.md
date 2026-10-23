@@ -22,8 +22,12 @@ Target: TCL Smart TV Pro, Android TV 14. Device addresses, identifiers, screensh
 - Settings → Android TV → TV Home (via D-pad/OK) → Google TV, which stays in front after Home; reopening CleanFrame restores the Home return.
 - No Google TV or setup package was disabled; no crashes in logcat.
 
-Not yet confirmed: survival across reboot, and how visible the brief Google TV frame is with a real remote.
+- Standby and wake (`KEYCODE_SLEEP`/`KEYCODE_WAKEUP`, no reboot) kept the service bound; Home from Netflix after waking returned to CleanFrame.
+
+**Full reboot breaks it.** TCL's app-boot guard runs an "auto management" policy that resets the `AUTO_START` app-op to `ignore` on every boot and also dropped a `deviceidle` allow-list entry. With CleanFrame not running, `TclAppBoot` refuses the accessibility bind (`callee_does't_have_OP_AUTO_START_permission`), so the TV boots to Google TV and Home stays there. The Safety Guard app that some TCL firmware uses to make this permanent is not installed here. Re-enabling the service while CleanFrame is running binds it immediately, and it then lasts until the next reboot.
+
+Not yet confirmed: how visible the brief Google TV frame is with a real remote.
 
 ## Pending
 
-Physical remote feel and Home flash, all nine streaming launches through the UI, Home service after reboot/wake, HDMI/CEC and casting. The last rapid-key app-launch probe was inconclusive. Keep the PR draft until device acceptance. Do not claim Home works after reboot until checked.
+Physical remote feel and Home flash, all nine streaming launches through the UI, a self-healing Home service after reboot, HDMI/CEC and casting. The last rapid-key app-launch probe was inconclusive. Keep the PR draft until device acceptance. Do not claim Home works after a reboot.
