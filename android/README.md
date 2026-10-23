@@ -1,6 +1,6 @@
 # CleanFrame for Android TV — first device trial
 
-This fork keeps CleanFrame's UI and adds an offline Android TV shell. It can be selected as the default Home app through Android's Home settings. No system apps need to be disabled. Minimum Android API 26; initial target TCL Smart TV Pro on Android TV 14. Physical compatibility is unverified until the owner completes the checks below.
+This fork keeps CleanFrame's UI and adds an offline Android TV shell. It can be selected as the default Home app through Android's Home settings. No system apps need to be disabled. Minimum Android API 26; initial target TCL Smart TV Pro on Android TV 14. Rendering and the original-home return were verified; this firmware still opens Google TV on physical Home despite accepting the HOME role. See [device status](../docs/android-device-status.md).
 
 Favorites: Netflix, HBO Max, YouTube, Paramount+, Apple TV, Prime Video, Peacock, Disney+ and Tubi, in that order. Existing wallpapers, List/Dock, app arrangement and appearance settings are retained. Paramount+ and Peacock use installed app icons (initials before discovery); other favorites use existing licensed bundled marks. Missing apps produce an error and can be replaced through All apps. Install streaming apps and sign in through their official TV apps.
 
