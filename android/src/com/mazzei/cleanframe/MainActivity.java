@@ -143,7 +143,9 @@ public final class MainActivity extends Activity {
     public final class Bridge {
         @JavascriptInterface public void request(String method, String token, String target) {
             if (token == null || !token.matches("[0-9]{1,10}")) return;
-            runOnUiThread(() -> {
+            // android.jar intentionally omits LambdaMetafactory implementation details.
+            // A Runnable keeps the standalone javac + d8 build independent of Gradle desugaring.
+            runOnUiThread(new Runnable() { @Override public void run() {
                 if (web == null || !START.equals(web.getUrl()) || !resumed) return;
                 JSONObject response = new JSONObject();
                 try {
@@ -162,7 +164,7 @@ public final class MainActivity extends Activity {
                     catch (Exception ignored) { /* Fixed JSON key. */ }
                 }
                 js("window.CleanFrameAndroidResult && window.CleanFrameAndroidResult(" + JSONObject.quote(token) + "," + response + ")");
-            });
+            } });
         }
     }
     private static WebResourceResponse denied() {
