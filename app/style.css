@@ -189,7 +189,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .ph-plate.on-sel{opacity:.5}
 .ph-plate.is-outgoing{opacity:0}
 .ph-plate.is-preparing{opacity:0!important;transition:none!important}
-.ph-field{position:absolute;left:0;top:0;width:1920px;height:1080px;transform:translate3d(-112px,0,0)}
+.ph-field{position:absolute;left:0;top:0;width:1920px;height:1080px;transform:translate(-112px,0)}
 .ph-field-img{position:absolute;left:0;top:0;width:1920px;height:1080px;max-width:none;object-fit:cover;object-position:50% 50%}
 .ph-veil{position:absolute;left:0;top:0;right:0;bottom:0;background:rgba(12,10,8,.12)}
 .tone-light .ph-veil{background:rgba(12,10,8,.2)}
