@@ -1,6 +1,8 @@
 package com.mazzei.cleanframe;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ComponentName;
 import android.content.pm.PackageManager;
@@ -39,6 +41,21 @@ public final class MainActivity extends Activity {
     private WebView web;
     private boolean resumed;
     private final Handler main = new Handler(Looper.getMainLooper());
+    private static boolean homePromptDeclined; // For this process only; a reboot asks again.
+    private AlertDialog homePrompt;
+    private final Runnable homeCheck = new Runnable() { @Override public void run() {
+        if (!resumed || homePromptDeclined || (homePrompt != null && homePrompt.isShowing()) || !HomeService.needsReenable(MainActivity.this)) return;
+        homePrompt = new AlertDialog.Builder(MainActivity.this)
+            .setTitle("Turn the Home button back on")
+            .setMessage("After the TV restarts, TCL pauses CleanFrame’s Home button. In Accessibility, open CleanFrame Home button, turn it off, then turn it on again.")
+            .setPositiveButton("Open Accessibility", new DialogInterface.OnClickListener() { @Override public void onClick(DialogInterface d, int which) {
+                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+            } })
+            .setNegativeButton("Not now", new DialogInterface.OnClickListener() { @Override public void onClick(DialogInterface d, int which) {
+                homePromptDeclined = true;
+            } })
+            .show();
+    } };
     // Brand mappings are hints; a target must also resolve to an installed TV launch activity.
     private static final String[][] BRANDS = {
         {"netflix", "com.netflix.ninja"},
@@ -134,15 +151,16 @@ public final class MainActivity extends Activity {
     private void js(String script) { if (web != null) web.evaluateJavascript(script, null); }
     @Override protected void onResume() {
         super.onResume(); resumed = true; HomeService.stockChosen = false;
-        HomeService.rearm(this, main);
+        main.postDelayed(homeCheck, 1500); // Let a just-restarted process reconnect the service first.
         if (web != null) { web.onResume(); js("window.FrameVisibility && window.FrameVisibility(true)"); }
     }
     @Override protected void onPause() {
-        resumed = false;
+        resumed = false; main.removeCallbacks(homeCheck);
         if (web != null) { js("window.FrameVisibility && window.FrameVisibility(false)"); web.onPause(); }
         super.onPause();
     }
     @Override protected void onDestroy() {
+        if (homePrompt != null) homePrompt.dismiss();
         if (web != null) { web.removeJavascriptInterface("CleanFrameAndroid"); web.destroy(); web = null; }
         super.onDestroy();
     }
