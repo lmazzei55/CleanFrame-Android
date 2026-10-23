@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="home_service_label">CleanFrame Home button</string>
+    <string name="home_service_description">Brings you back to CleanFrame when the Home button opens the Google TV home screen. It only notices when that home screen appears; it cannot read the screen or your key presses. Turn it off to use the original TCL home screen again.</string>
+</resources>

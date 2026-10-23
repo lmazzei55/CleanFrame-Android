@@ -98,6 +98,7 @@ public final class MainActivity extends Activity {
         }
         if (chosen == null) throw new IllegalArgumentException("The original TV home could not be found. Open TV settings to choose a Home screen.");
         home.setComponent(new ComponentName(chosen.activityInfo.packageName, chosen.activityInfo.name));
+        HomeService.stockChosen = true; // The owner asked for the original home; let it stay until CleanFrame returns.
         startActivity(home.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     }
     @Override public void onCreate(Bundle state) {
@@ -129,7 +130,7 @@ public final class MainActivity extends Activity {
     }
     private void js(String script) { if (web != null) web.evaluateJavascript(script, null); }
     @Override protected void onResume() {
-        super.onResume(); resumed = true;
+        super.onResume(); resumed = true; HomeService.stockChosen = false;
         if (web != null) { web.onResume(); js("window.FrameVisibility && window.FrameVisibility(true)"); }
     }
     @Override protected void onPause() {
@@ -175,7 +176,8 @@ public final class MainActivity extends Activity {
                         startActivity(intent);
                     } else if ("settings".equals(method)) startActivity(new Intent(Settings.ACTION_SETTINGS));
                     else if ("home".equals(method)) originalHome();
-                    else if ("defaultHome".equals(method)) startActivity(new Intent(Settings.ACTION_HOME_SETTINGS));
+                    // This firmware ignores the HOME role for the remote button, so the toggle is the Home accessibility service.
+                    else if ("defaultHome".equals(method)) startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
                     else throw new IllegalArgumentException("Unsupported TV action.");
                 } catch (Exception e) {
                     try { response.put("error", e instanceof IllegalArgumentException ? e.getMessage() : "The TV could not open this screen. Use the remote’s Home button to return."); }

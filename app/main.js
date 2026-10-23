@@ -872,7 +872,7 @@
       { action: 'samsung.home', label: HOME_LABEL, description: PROFILE.homeDescription || 'Open Samsung’s Home screen' },
       { action: 'samsung.settings', label: 'TV settings', description: 'Picture, sound and network settings' }
     ];
-    if (PROFILE.defaultHome) systemItems.push({ action: 'android.defaultHome', label: 'Home button', description: 'Choose CleanFrame or the original TCL home screen as your default' });
+    if (PROFILE.defaultHome) systemItems.push({ action: 'android.defaultHome', label: 'Home button', description: 'Turn on CleanFrame Home button in Accessibility so Home returns here' });
     return [{ id: 'samsung', title: '', items: systemItems }];
   }
   function detailRows(t) {

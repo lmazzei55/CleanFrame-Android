@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.mazzei.cleanframe" android:versionCode="2" android:versionName="0.2.0">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.mazzei.cleanframe" android:versionCode="3" android:versionName="0.3.0">
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="34" />
     <uses-feature android:name="android.software.leanback" android:required="true" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
@@ -7,7 +7,8 @@
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LEANBACK_LAUNCHER" /></intent>
         <intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.HOME" /></intent>
     </queries>
-    <!-- No network, storage, accessibility, boot or system-setting permissions. -->
+    <!-- No network, storage, boot or system-setting permissions. The optional Home service is off until
+         the owner enables it in Accessibility settings; see res/xml/home_service.xml for its narrow scope. -->
     <application android:label="CleanFrame" android:icon="@drawable/icon" android:banner="@drawable/banner"
         android:theme="@android:style/Theme.Material.NoActionBar" android:allowBackup="false"
         android:usesCleartextTraffic="false" android:hardwareAccelerated="true">
@@ -24,5 +25,10 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+        <service android:name=".HomeService" android:exported="true" android:label="@string/home_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/home_service" />
+        </service>
     </application>
 </manifest>
