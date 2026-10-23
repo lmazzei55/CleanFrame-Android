@@ -91,6 +91,9 @@ public final class MainActivity extends Activity {
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
+        settings.setUseWideViewPort(true);
+        settings.setLoadWithOverviewMode(true);
+        settings.setTextZoom(100);
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         settings.setBlockNetworkLoads(true);
