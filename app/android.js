@@ -7,11 +7,11 @@
     ['netflix', 'Netflix', true], ['hbomax', 'HBO Max', true],
     ['youtube', 'YouTube', true], ['paramount', 'Paramount+', false],
     ['appletv', 'Apple TV', true], ['primevideo', 'Prime Video', true],
-    ['peacock', 'Peacock', false], ['disneyplus', 'Disney+', true]
+    ['peacock', 'Peacock', false], ['disneyplus', 'Disney+', true], ['tubi', 'Tubi', true]
   ];
   window.FrameProfile = {
     storageKey: 'cleanframe.android.v1', systemName: 'Android TV', homeLabel: 'TV Home',
-    homeDescription: 'Open the TV’s original home screen', utilities: ['apps', 'settings'],
+    homeDescription: 'Open the original TCL home screen', utilities: ['apps', 'settings'], defaultHome: true,
     favorites: favorites.map(function (item) {
       return { id: item[0], name: item[1], mark: item[2], appId: 'brand.' + item[0] };
     })
@@ -37,6 +37,7 @@
     apps: function (done) { request('apps', '', done); },
     home: function (done) { request('home', '', done); },
     settings: function (done) { request('settings', '', done); },
+    defaultHome: function (done) { request('defaultHome', '', done); },
     art: function (done) { done({ message: 'Samsung Art Mode is not available on Android TV.' }); }
   };
 }());

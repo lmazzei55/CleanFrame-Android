@@ -2,6 +2,7 @@ package com.mazzei.cleanframe;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.ComponentName;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
@@ -44,7 +45,8 @@ public final class MainActivity extends Activity {
         {"appletv", "com.apple.atve.androidtv.appletv"},
         {"primevideo", "com.amazon.amazonvideo.livingroom"},
         {"peacock", "com.peacocktv.peacockandroid"},
-        {"disneyplus", "com.disney.disneyplus"}
+        {"disneyplus", "com.disney.disneyplus"},
+        {"tubi", "com.tubitv"}
     };
     private static String brand(String pkg) {
         for (String[] row : BRANDS) for (int i = 1; i < row.length; i++) if (row[i].equals(pkg)) return row[0];
@@ -84,6 +86,19 @@ public final class MainActivity extends Activity {
                 .put("icon", "/icons/" + pkg + ".png"));
         }
         return result;
+    }
+    private void originalHome() {
+        Intent home = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME);
+        ResolveInfo chosen = null;
+        for (ResolveInfo info : getPackageManager().queryIntentActivities(home, 0)) {
+            if (info.activityInfo == null || !info.activityInfo.exported || getPackageName().equals(info.activityInfo.packageName)) continue;
+            // Prefer the stock Google TV home, including when CleanFrame is now the default.
+            if ("com.google.android.apps.tv.launcherx".equals(info.activityInfo.packageName)) { chosen = info; break; }
+            if (chosen == null && (info.activityInfo.applicationInfo.flags & android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0) chosen = info;
+        }
+        if (chosen == null) throw new IllegalArgumentException("The original TV home could not be found. Open TV settings to choose a Home screen.");
+        home.setComponent(new ComponentName(chosen.activityInfo.packageName, chosen.activityInfo.name));
+        startActivity(home.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     }
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -159,8 +174,8 @@ public final class MainActivity extends Activity {
                         if (intent == null) throw new IllegalArgumentException("This app is not installed or has no TV launch screen. Install it from the TV’s Play Store, or choose it in All apps.");
                         startActivity(intent);
                     } else if ("settings".equals(method)) startActivity(new Intent(Settings.ACTION_SETTINGS));
-                    else if ("home".equals(method)) startActivity(new Intent(Intent.ACTION_MAIN)
-                        .addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                    else if ("home".equals(method)) originalHome();
+                    else if ("defaultHome".equals(method)) startActivity(new Intent(Settings.ACTION_HOME_SETTINGS));
                     else throw new IllegalArgumentException("Unsupported TV action.");
                 } catch (Exception e) {
                     try { response.put("error", e instanceof IllegalArgumentException ? e.getMessage() : "The TV could not open this screen. Use the remote’s Home button to return."); }

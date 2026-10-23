@@ -1,8 +1,8 @@
 # CleanFrame for Android TV — first device trial
 
-This fork keeps CleanFrame's UI and adds an offline Android TV shell. It is an ordinary app, not yet a replacement for the remote's Home button. No system apps are disabled, and no boot/default-launcher/accessibility settings are changed. Minimum Android API 26; initial target TCL Smart TV Pro on Android TV 14. Physical compatibility is unverified until the owner completes the checks below.
+This fork keeps CleanFrame's UI and adds an offline Android TV shell. It can be selected as the default Home app through Android's Home settings. No system apps need to be disabled. Minimum Android API 26; initial target TCL Smart TV Pro on Android TV 14. Physical compatibility is unverified until the owner completes the checks below.
 
-Favorites: Netflix, HBO Max, YouTube, Paramount+, Apple TV, Prime Video, Peacock and Disney+, in that order. Existing wallpapers, List/Dock, app arrangement and appearance settings are retained. Paramount+ and Peacock use installed app icons (initials before discovery); other favorites use existing licensed bundled marks. Missing apps produce an error and can be replaced through All apps. Install streaming apps and sign in through their official TV apps.
+Favorites: Netflix, HBO Max, YouTube, Paramount+, Apple TV, Prime Video, Peacock, Disney+ and Tubi, in that order. Existing wallpapers, List/Dock, app arrangement and appearance settings are retained. Paramount+ and Peacock use installed app icons (initials before discovery); other favorites use existing licensed bundled marks. Missing apps produce an error and can be replaced through All apps. Install streaming apps and sign in through their official TV apps.
 
 ## Preview and checks
 
@@ -16,7 +16,7 @@ npm run check:android
 npm run check:public
 ```
 
-The Android browser preview uses separate preferences and cannot launch TV apps. Its Samsung-only Art Mode control is omitted. Settings → Android TV contains TV Home and TV settings. The Tizen preview/packager is retained for upstream compatibility; never use the Tizen device scripts for an Android TV.
+The Android browser preview uses separate preferences and cannot launch TV apps. Its Samsung-only Art Mode control is omitted. Settings → Android TV contains TV Home, TV settings and Home button. TV Home opens the original TCL interface once. Home button opens Android’s default-Home selector so you can select CleanFrame or permanently restore the original launcher. The Tizen preview/packager is retained for upstream compatibility; never use the Tizen device scripts for an Android TV.
 
 ## Build
 
@@ -30,6 +30,14 @@ python3 scripts/build-android.py
 Output: `dist/CleanFrame-Android-test.apk`; app ID: `com.mazzei.cleanframe`. The first local build creates `.local/android/debug.keystore`. Keep this ignored key for in-place local updates. CI generates an ephemeral test certificate: different runs will generally **not** update each other with `adb install -r`. Preserve the installed APK/certificate or arrange a stable private signing key before future updates. Do not automatically uninstall to work around a signature error; uninstall clears this app's preferences. No release signing or Play Store distribution is configured.
 
 ## Device installation
+
+For device updates, re-sign each downloaded CI APK with the same persistent local key before installing:
+
+```sh
+python3 scripts/sign-android.py --jdk '/path/to/jdk/home' --build-tools '/path/to/build-tools/34.0.0' --input '/path/to/CleanFrame-Android-test.apk'
+```
+
+This produces `dist/CleanFrame-Android-local.apk`. The first invocation creates a private installation key and random password under ignored `.local/android/signing/`; subsequent invocations reuse it. Back up that folder securely and never upload it. Re-signing keeps the CI artifact intact. A TV already using an ephemeral CI certificate needs a one-time app replacement before adopting this identity; confirm the preference reset first. Future locally signed updates use `adb install -r` and retain preferences.
 
 Connect the Mac and TV to the same trusted LAN. Enable the debugging option exposed by the TV and accept its authorization prompt. For Wireless debugging, use its displayed pairing and connection ports. Do not assume port 5555. Select a single verified device explicitly for every command:
 
@@ -48,13 +56,13 @@ Record the model, firmware, package list and Home handler privately before insta
 
 - Launch each installed favorite; confirm missing apps report an honest error.
 - Use actual D-pad, OK and Back in Dock, List, Settings and the editor; verify one focused control and no double launch when holding OK.
-- Home must still open the stock TV interface; reopen CleanFrame to return. Back within a streaming app belongs to that app.
+- After selecting CleanFrame as default, Home must return to CleanFrame. Check TV Home opens the original interface and Home button can restore it as default. Back within a streaming app belongs to that app.
 - Change wallpaper/order, exit and reopen, then restart the TV and reopen the app; confirm saved preferences.
 - Confirm wallpaper timers pause outside CleanFrame and the TV's screensaver/sleep remain functional.
 - Confirm volume, dedicated app buttons, HDMI/CEC and casting still work.
 - Test offline launcher rendering. Streaming still needs the streaming apps' normal network access.
 
-Turn debugging off when finished. Undo this ordinary-app trial by uninstalling only `com.mazzei.cleanframe` through Settings; no stock-launcher restoration is needed. Replacing Home is separate future work and needs a verified recovery plan.
+Turn debugging off when finished. Undo this ordinary-app trial by uninstalling only `com.mazzei.cleanframe` through Settings; first restore the original launcher through Home button if CleanFrame is the default. Keep a private record of the original Home component before changing the default.
 
 ## Bridge boundaries
 

@@ -868,10 +868,12 @@
     ];
     if (t.group === 'rotation') return [{ id: 'mode', title: '', items: options('mode', MODES.map(function (m) { return m.id; }), flat),
       reason: flat ? 'Choose Photo in Background to use rotation.' : 'Timed changes pause while Settings or another panel is open.' }];
-    return [{ id: 'samsung', title: '', items: [
+    var systemItems = [
       { action: 'samsung.home', label: HOME_LABEL, description: PROFILE.homeDescription || 'Open Samsung’s Home screen' },
       { action: 'samsung.settings', label: 'TV settings', description: 'Picture, sound and network settings' }
-    ] }];
+    ];
+    if (PROFILE.defaultHome) systemItems.push({ action: 'android.defaultHome', label: 'Home button', description: 'Choose CleanFrame or the original TCL home screen as your default' });
+    return [{ id: 'samsung', title: '', items: systemItems }];
   }
   function detailRows(t) {
     var rows = [[{ action: 'settings.back', label: t.group === 'rotation' ? 'Background' : 'Settings' }]];
@@ -917,6 +919,7 @@
     else if (item.action === 'background.rotation') openAppearance('rotation');
     else if (item.action === 'samsung.home') perform(HOME_LABEL, FrameDevice.home);
     else if (item.action === 'samsung.settings') perform('TV settings', FrameDevice.settings);
+    else if (item.action === 'android.defaultHome') perform('Home button', FrameDevice.defaultHome);
   }
   V.appearance = {
     norm: function (t) {

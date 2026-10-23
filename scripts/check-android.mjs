@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { openPreview, root } from './browser.mjs';
 
-const favorites = ['netflix', 'hbomax', 'youtube', 'paramount', 'appletv', 'primevideo', 'peacock', 'disneyplus'];
-const labels = ['Netflix', 'HBO Max', 'YouTube', 'Paramount+', 'Apple TV', 'Prime Video', 'Peacock', 'Disney+'];
-const packages = ['com.netflix.ninja', 'com.wbd.stream', 'com.google.android.youtube.tv', 'com.cbs.ott', 'com.apple.atve.androidtv.appletv', 'com.amazon.amazonvideo.livingroom', 'com.peacocktv.peacockandroid', 'com.disney.disneyplus'];
+const favorites = ['netflix', 'hbomax', 'youtube', 'paramount', 'appletv', 'primevideo', 'peacock', 'disneyplus', 'tubi'];
+const labels = ['Netflix', 'HBO Max', 'YouTube', 'Paramount+', 'Apple TV', 'Prime Video', 'Peacock', 'Disney+', 'Tubi'];
+const packages = ['com.netflix.ninja', 'com.wbd.stream', 'com.google.android.youtube.tv', 'com.cbs.ott', 'com.apple.atve.androidtv.appletv', 'com.amazon.amazonvideo.livingroom', 'com.peacocktv.peacockandroid', 'com.disney.disneyplus', 'com.tubitv'];
 const preview = await openPreview({ publicFonts: true });
 let count = 0;
 function check(value, message) { assert.ok(value, message); count++; }
@@ -15,7 +15,7 @@ try {
   page.on('pageerror', error => errors.push(String(error)));
   await page.goto(preview.baseURL + '/home/?platform=android');
   await page.waitForFunction(() => window.ShoreQA?.ready());
-  check(JSON.stringify(await page.evaluate(() => ShoreQA.state().home)) === JSON.stringify(favorites), 'All eight requested favorites in order');
+  check(JSON.stringify(await page.evaluate(() => ShoreQA.state().home)) === JSON.stringify(favorites), 'All nine requested favorites in order');
   check(!(await page.getByRole('button', { name: 'Art Mode', exact: true }).count()), 'No Samsung Art Mode');
   await page.evaluate(() => FrameRemoteKey('ok'));
   await page.waitForFunction(() => document.body.innerText.includes('browser preview cannot control'));
@@ -42,7 +42,7 @@ try {
   }, { favorites, packages, labels });
   await tv.goto(preview.baseURL + '/home/');
   await tv.waitForFunction(() => window.ShoreQA?.ready() && ShoreQA.state().catalog.loaded);
-  check((await tv.evaluate(() => ShoreQA.state().catalog.ids.length)) === 8, 'Native catalogue discovery');
+  check((await tv.evaluate(() => ShoreQA.state().catalog.ids.length)) === 9, 'Native catalogue discovery');
   for (let i = 0; i < favorites.length; i++) {
     await tv.evaluate(() => FrameRemoteKey('ok'));
     await tv.waitForTimeout(100);
@@ -65,6 +65,11 @@ try {
   check((await tv.evaluate(() => calls.at(-1).method)) === 'home', 'Stock Home bridge action');
   await tv.evaluate(() => new Promise(resolve => FrameDevice.settings(() => resolve())));
   check((await tv.evaluate(() => calls.at(-1).method)) === 'settings', 'TV settings bridge action');
+  await tv.evaluate(() => { window.failLaunch = false; ShoreQA.scene('settings'); ShoreQA.activate('settings.group.samsung'); });
+  check((await tv.locator('body').innerText()).includes('Home button'), 'Default Home settings is available');
+  await tv.evaluate(() => ShoreQA.activate('android.defaultHome'));
+  await tv.waitForFunction(() => calls.at(-1).method === 'defaultHome');
+  check((await tv.evaluate(() => calls.at(-1).method)) === 'defaultHome', 'Home selector uses its own native action');
   await tv.evaluate(() => {
     var saved = JSON.parse(localStorage.getItem('cleanframe.android.v1'));
     saved.mode = '5'; localStorage.setItem('cleanframe.android.v1', JSON.stringify(saved));
