@@ -1,6 +1,6 @@
 # CleanFrame for Android TV — first device trial
 
-This fork keeps CleanFrame's UI and adds an offline Android TV shell. It can be selected as the default Home app through Android's Home settings. No system apps need to be disabled. Minimum Android API 26; initial target TCL Smart TV Pro on Android TV 14. Rendering and the original-home return were verified; this firmware still opens Google TV on physical Home despite accepting the HOME role. See [device status](../docs/android-device-status.md).
+This fork keeps CleanFrame's UI and adds an offline Android TV shell. An optional, narrowly scoped accessibility service returns the remote Home button to CleanFrame. No system apps are disabled. Minimum Android API 26; initial target TCL Smart TV Pro on Android TV 14. This firmware ignores the HOME role for the Home button, so the service is the supported route there; it was verified on that TV. See [device status](../docs/android-device-status.md).
 
 Favorites: Netflix, HBO Max, YouTube, Paramount+, Apple TV, Prime Video, Peacock, Disney+ and Tubi, in that order. Existing wallpapers, List/Dock, app arrangement and appearance settings are retained. Paramount+ and Peacock use installed app icons (initials before discovery); other favorites use existing licensed bundled marks. Missing apps produce an error and can be replaced through All apps. Install streaming apps and sign in through their official TV apps.
 
@@ -16,7 +16,7 @@ npm run check:android
 npm run check:public
 ```
 
-The Android browser preview uses separate preferences and cannot launch TV apps. Its Samsung-only Art Mode control is omitted. Settings → Android TV contains TV Home, TV settings and Home button. TV Home opens the original TCL interface once. Home button opens Android’s default-Home selector so you can select CleanFrame or permanently restore the original launcher. The Tizen preview/packager is retained for upstream compatibility; never use the Tizen device scripts for an Android TV.
+The Android browser preview uses separate preferences and cannot launch TV apps. Its Samsung-only Art Mode control is omitted. Settings → Android TV contains TV Home, TV settings and Home button. TV Home opens the original TCL interface and keeps it there, even across Home presses, until CleanFrame is opened again. Home button opens Accessibility settings, where **CleanFrame Home button** turns the Home return on or off. The Tizen preview/packager is retained for upstream compatibility; never use the Tizen device scripts for an Android TV.
 
 ## Build
 
@@ -52,20 +52,33 @@ adb -s DEVICE_SERIAL shell am start -n com.mazzei.cleanframe/.MainActivity
 
 Record the model, firmware, package list and Home handler privately before installation. Confirm the target and announce installation/launch. Save addresses, serials and authorization details only under ignored `.local/`, never in issues, PRs, screenshots or committed documents.
 
+## Home button on TCL Google TV
+
+TCL's Android 14 firmware accepts `cmd package set-home-activity` and reports CleanFrame as HOME role holder, yet the remote Home button still resolves to Google TV. CleanFrame therefore ships `HomeService`: when Google TV's `HomeActivity` comes to the front, it relaunches CleanFrame with `CATEGORY_HOME`, so Android treats it as the home task. TCL's app guard blocks the service from binding unless the `AUTO_START` app-op is allowed (`APP_AUTO_START` on some firmware). Enable it in TV Settings → Accessibility, or with ADB after recording the current values privately:
+
+```sh
+adb -s DEVICE_SERIAL shell settings get secure enabled_accessibility_services
+adb -s DEVICE_SERIAL shell appops set com.mazzei.cleanframe AUTO_START allow
+adb -s DEVICE_SERIAL shell settings put secure enabled_accessibility_services com.mazzei.cleanframe/com.mazzei.cleanframe.HomeService
+adb -s DEVICE_SERIAL shell settings put secure accessibility_enabled 1
+```
+
+If other services were already enabled, append CleanFrame with a `:` separator instead of replacing them. Confirm `dumpsys accessibility` lists it under Bound services. To recover, put the recorded value back (or turn the service off in Accessibility) and `appops set com.mazzei.cleanframe AUTO_START default`. Never disable Google TV or setup packages: that can leave the TV without a usable home and require a factory reset.
+
 ## Physical acceptance
 
 - Launch each installed favorite; confirm missing apps report an honest error.
 - Use actual D-pad, OK and Back in Dock, List, Settings and the editor; verify one focused control and no double launch when holding OK.
-- After selecting CleanFrame as default, Home must return to CleanFrame. Check TV Home opens the original interface and Home button can restore it as default. Back within a streaming app belongs to that app.
+- With CleanFrame Home button on, Home from a streaming app must return to CleanFrame (a brief Google TV frame may show first). TV Home must open and keep the original interface. Back within a streaming app belongs to that app. Repeat after a reboot.
 - Change wallpaper/order, exit and reopen, then restart the TV and reopen the app; confirm saved preferences.
 - Confirm wallpaper timers pause outside CleanFrame and the TV's screensaver/sleep remain functional.
 - Confirm volume, dedicated app buttons, HDMI/CEC and casting still work.
 - Test offline launcher rendering. Streaming still needs the streaming apps' normal network access.
 
-Turn debugging off when finished. Undo this ordinary-app trial by uninstalling only `com.mazzei.cleanframe` through Settings; first restore the original launcher through Home button if CleanFrame is the default. Keep a private record of the original Home component before changing the default.
+Turn debugging off when finished. Undo the trial by turning off CleanFrame Home button in Accessibility, then uninstalling only `com.mazzei.cleanframe` through Settings. Keep a private record of the original accessibility services and Home component before changing either.
 
 ## Bridge boundaries
 
-WebView loads only bundled assets on a synthetic HTTPS origin, with no network permission, file/content access, remote frames, external navigation or arbitrary intent/shell bridge. The native boundary supports app discovery, launch of installed TV-launchable packages, TV settings and stock Home. App icons are loaded locally from installed packages. Android pause/resume explicitly controls UI timers. Device callbacks acknowledge Android intent dispatch, not visible success inside another app.
+WebView loads only bundled assets on a synthetic HTTPS origin, with no network permission, file/content access, remote frames, external navigation or arbitrary intent/shell bridge. The native boundary supports app discovery, launch of installed TV-launchable packages, TV settings, Accessibility settings and stock Home. The Home service has no capabilities beyond `TYPE_WINDOW_STATE_CHANGED` events from `com.google.android.apps.tv.launcherx`: no key filtering, window content or gestures. App icons are loaded locally from installed packages. Android pause/resume explicitly controls UI timers. Device callbacks acknowledge Android intent dispatch, not visible success inside another app.
 
 Code and asset licences remain those of upstream; see LICENSE and THIRD_PARTY_NOTICES.md.
