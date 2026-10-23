@@ -1,11 +1,14 @@
 package com.mazzei.cleanframe;
 
 import android.accessibilityservice.AccessibilityService;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Handler;
+import android.os.PatternMatcher;
 import android.provider.Settings;
 import android.view.accessibility.AccessibilityEvent;
 
@@ -20,6 +23,7 @@ public final class HomeService extends AccessibilityService {
     // Set when the owner deliberately opens the original home; cleared when CleanFrame is shown again.
     static volatile boolean stockChosen;
     private static volatile boolean connected;
+    private static boolean rearming;
 
     @Override protected void onServiceConnected() { connected = true; }
     @Override public boolean onUnbind(Intent intent) { connected = false; return super.onUnbind(intent); }
@@ -38,25 +42,40 @@ public final class HomeService extends AccessibilityService {
 
     /**
      * TCL's boot guard refuses to bind this service after a reboot because CleanFrame is not running yet,
-     * and Android does not retry. While CleanFrame is open the bind is allowed, so briefly toggle this
-     * service component: the package change makes Android re-read and bind enabled services. Acts only
-     * when the owner still has the service enabled and it is not bound; needs no permission.
+     * and Android does not retry. While CleanFrame is open the bind is allowed, so toggle this service
+     * component: once Android has seen it disabled and then restored, it re-reads and binds enabled
+     * services. Package-change broadcasts are delayed and coalesced, so each step waits for its own
+     * broadcast. Acts only when the owner still has the service enabled; needs no permission.
      */
-    static void rearm(final Context context, Handler handler) {
-        if (connected) return;
+    static void rearm(Context activity, final Handler handler) {
+        if (connected || rearming) return;
+        final Context context = activity.getApplicationContext();
         final ComponentName self = new ComponentName(context, HomeService.class);
         String enabled = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
         boolean listed = false;
-        if (enabled != null) for (String entry : enabled.split(":")) {
-            ComponentName name = ComponentName.unflattenFromString(entry);
-            if (self.equals(name)) listed = true;
-        }
+        if (enabled != null) for (String entry : enabled.split(":")) if (self.equals(ComponentName.unflattenFromString(entry))) listed = true;
         if (!listed) return;
+        rearming = true;
         final PackageManager pm = context.getPackageManager();
-        pm.setComponentEnabledSetting(self, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
-        // Restore the manifest default; a later rearm repeats this if the process dies in between.
-        handler.postDelayed(new Runnable() { @Override public void run() {
+        final BroadcastReceiver[] receiver = new BroadcastReceiver[1];
+        final Runnable finish = new Runnable() { @Override public void run() {
+            if (!rearming) return;
+            rearming = false;
+            handler.removeCallbacks(this);
+            try { context.unregisterReceiver(receiver[0]); } catch (IllegalArgumentException ignored) { /* Already gone. */ }
             pm.setComponentEnabledSetting(self, PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, PackageManager.DONT_KILL_APP);
-        } }, 500);
+        } };
+        receiver[0] = new BroadcastReceiver() { @Override public void onReceive(Context c, Intent intent) {
+            int state = pm.getComponentEnabledSetting(self);
+            if (state == PackageManager.COMPONENT_ENABLED_STATE_DISABLED) {
+                pm.setComponentEnabledSetting(self, PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, PackageManager.DONT_KILL_APP);
+            } else finish.run(); // The restore was announced; Android rebinds now.
+        } };
+        IntentFilter filter = new IntentFilter(Intent.ACTION_PACKAGE_CHANGED);
+        filter.addDataScheme("package");
+        filter.addDataSchemeSpecificPart(context.getPackageName(), PatternMatcher.PATTERN_LITERAL);
+        context.registerReceiver(receiver[0], filter, null, handler);
+        handler.postDelayed(finish, 45000); // Never leave the service component disabled.
+        pm.setComponentEnabledSetting(self, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP);
     }
 }
