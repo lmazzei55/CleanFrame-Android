@@ -65,6 +65,21 @@ adb -s DEVICE_SERIAL shell settings put secure accessibility_enabled 1
 
 If other services were already enabled, append CleanFrame with a `:` separator instead of replacing them. Confirm `dumpsys accessibility` lists it under Bound services. On the tested TCL firmware the guard resets `AUTO_START` at every reboot, so after a reboot the service stays unbound until it is re-enabled while CleanFrame is running; standby and wake are unaffected. When CleanFrame opens in that state it shows a dialog that opens Accessibility settings, where turning CleanFrame Home button off and on again restores it. Android's confirmation warns that any accessibility service could read typed text; this one is configured without window content or key access. To recover, put the recorded value back (or turn the service off in Accessibility) and `appops set com.mazzei.cleanframe AUTO_START default`. Never disable Google TV or setup packages: that can leave the TV without a usable home and require a factory reset.
 
+## Remote control without ADB
+
+`scripts/android-remote.py` speaks the Android TV Remote v2 protocol used by the Google TV phone remote, so routine checks do not need debugging left on. It sends keys and app links and reads the foreground app; it never changes Home/startup settings, accessibility services or packages. Pairing shows a code on the TV once. The certificate, key and TV address stay in ignored `.local/android/remote/`.
+
+```sh
+python3 scripts/android-remote.py setup
+python3 scripts/android-remote.py pair --host TV_ADDRESS
+python3 scripts/android-remote.py status
+python3 scripts/android-remote.py key DPAD_DOWN DPAD_CENTER
+python3 scripts/android-remote.py launch https://www.youtube.com
+python3 scripts/android-remote.py home-check
+```
+
+`home-check` presses Home once and exits non-zero unless CleanFrame comes to the front; run it from a streaming app after a reboot or update to see whether the Home button needs re-enabling. On macOS, Local Network privacy blocks python.org and Homebrew interpreters from reaching the TV ("No route to host"), so `setup` builds its environment with Apple's `/usr/bin/python3`. Announce key presses and launches as for any device command. To unpair, delete `.local/android/remote/` and remove the remote under the TV's Remotes & Accessories settings.
+
 ## Physical acceptance
 
 - Launch each installed favorite; confirm missing apps report an honest error.
