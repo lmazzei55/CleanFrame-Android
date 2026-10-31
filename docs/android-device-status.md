@@ -4,7 +4,7 @@ Target: TCL Smart TV Pro, Android TV 14. Device addresses, identifiers, screensh
 
 ## Verified
 
-- Latest tested source: `b5c15ee` (0.3.6) on `feat/android-tv`.
+- Latest tested source: `0ad2131` (0.3.7) on `claude/android-home-guards`, from `feat/android-tv`.
 - Nine requested apps are installed, including Apple TV and Tubi.
 - The APK installed with a persistent local signing key; a subsequent in-place update succeeded.
 - Physical screen capture confirms the full dock, clock and controls render correctly. `clientWidth/clientHeight` sizing fixed the WebView cropping; wide-viewport flags alone did not.
@@ -42,6 +42,13 @@ Every in-place APK update also unbinds the Home service (the process is killed a
 
 ## Pending
 
-0.3.7 adds Home-service guards (first-setup check, a stock-Home choice kept until reboot, a stop after three launches that never stayed open). It compiles, but has not been installed or observed on the TV. Device checks: TV Home still keeps Google TV across Home presses, also after CleanFrame's process is stopped; a reboot returns Home to CleanFrame once the service is re-enabled; normal Home returns are unchanged.
+0.3.7 adds Home-service guards (first-setup check, a stock-Home choice kept until reboot, a stop after three launches that never stayed open). Installed in place over 0.3.6 on 31 October with the persistent local key (preferences kept). Verified:
+
+- ADB readback: Netflix → Home and YouTube → Home returned to CleanFrame; no crashes in the crash log.
+- Owner, with the remote: TV Home opened Google TV and it stayed there through 2–3 Home presses (logcat shows each Home reopening Google TV, nothing redirecting).
+- Reboot with that choice still saved: the boot count changed, Google TV's Home started at boot and the service redirected it to CleanFrame, so the saved choice correctly ended at reboot. Netflix → Home then returned to CleanFrame.
+- Unlike earlier trials, the update did not unbind the service, and after the reboot `AUTO_START` read `allow` and the service bound without the re-enable prompt. One reboot only; TCL's boot guard may still reset it on other boots, so the prompt stays.
+
+Not exercised: the crash-loop stop (needs a deliberately broken build) and the stock choice surviving process death (on this firmware the service dies with the process and is not rebound).
 
 Physical remote feel and Home flash, all nine streaming launches through the UI,  HDMI/CEC and casting. The last rapid-key app-launch probe was inconclusive. Keep the PR draft until device acceptance. After a reboot, Home works only once the owner re-enables the service from the prompt.
