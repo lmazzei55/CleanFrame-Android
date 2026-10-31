@@ -67,6 +67,8 @@ If other services were already enabled, append CleanFrame with a `:` separator i
 
 Since 0.3.7 the service has three guards, adapted from [TV Detox](https://github.com/Ansub/tv-detox) (MIT). It leaves Home alone until the TV's first setup is complete. TV Home's choice of the original interface is saved, so it survives CleanFrame's process being killed or updated, and lasts until CleanFrame is shown again or the TV restarts. If three redirects in a row never stay open for about 1.5 seconds, the service stops redirecting so a broken build cannot trap Home in a loop; open CleanFrame from the TV's apps row to re-arm it.
 
+At boot, TCL binds the service about a second after Google TV's Home has opened, so the service misses that screen. Since 0.3.8 it opens CleanFrame itself when it connects within 60 seconds of boot, through the same guards. A TV set to power on into an HDMI input or Live TV would be switched to CleanFrame in that minute.
+
 ## Physical acceptance
 
 - Launch each installed favorite; confirm missing apps report an honest error.

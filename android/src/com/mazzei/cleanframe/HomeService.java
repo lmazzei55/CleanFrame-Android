@@ -24,16 +24,26 @@ public final class HomeService extends AccessibilityService {
     // After this many launches that never stayed open, stop redirecting until CleanFrame is opened by hand.
     private static final int MAX_FAILURES = 3;
     private static final long LAUNCH_GRACE_MS = 3000, DUPLICATE_MS = 500;
+    // TCL binds this service ~1 s after Google TV's boot Home opens (about 22 s after boot), so that event is missed.
+    private static final long BOOT_WINDOW_MS = 60000;
     private static volatile boolean connected;
     private static long lastLaunch = -DUPLICATE_MS;
 
-    @Override protected void onServiceConnected() { connected = true; }
+    @Override protected void onServiceConnected() {
+        connected = true;
+        // Without window access the front screen is unknown; just after boot it is Google TV's Home.
+        if (SystemClock.elapsedRealtime() < BOOT_WINDOW_MS) openCleanFrame();
+    }
     @Override public boolean onUnbind(Intent intent) { connected = false; return super.onUnbind(intent); }
 
     @Override public void onAccessibilityEvent(AccessibilityEvent event) {
         if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return;
         CharSequence pkg = event.getPackageName(), cls = event.getClassName();
         if (pkg == null || cls == null || !STOCK_PACKAGE.contentEquals(pkg) || !STOCK_HOME.contentEquals(cls)) return;
+        openCleanFrame();
+    }
+
+    private void openCleanFrame() {
         // During first setup, and after the owner chose the original home this boot, Google TV keeps Home.
         if (!setupComplete(this) || stockChosen(this)) return;
         long now = SystemClock.elapsedRealtime();

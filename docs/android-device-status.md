@@ -4,7 +4,7 @@ Target: TCL Smart TV Pro, Android TV 14. Device addresses, identifiers, screensh
 
 ## Verified
 
-- Latest tested source: `0ad2131` (0.3.7) on `claude/android-home-guards`, from `feat/android-tv`.
+- Latest tested source: 0.3.8 on `claude/android-home-guards`, from `feat/android-tv`.
 - Nine requested apps are installed, including Apple TV and Tubi.
 - The APK installed with a persistent local signing key; a subsequent in-place update succeeded.
 - Physical screen capture confirms the full dock, clock and controls render correctly. `clientWidth/clientHeight` sizing fixed the WebView cropping; wide-viewport flags alone did not.
@@ -37,6 +37,10 @@ The owner reported the TV feeling slower. Measured causes, largest first:
 - **Memory.** The TV has 2.4 GB RAM. With all nine streaming apps opened, zram swap was ~90% full. CleanFrame plus its WebView renderer use ~110 MB, and Google TV's launcher (~115 MB) stays resident because it is deliberately not disabled. Its process sits at cached priority (oom 900), so Android reclaims it under pressure.
 - **CleanFrame rendering.** Using a local profiling build (WebView debugging enabled, never committed) and `gfxinfo` over 12 D-pad moves, median frame time was ~32 ms (9% janky) in List/Soft/Glass. Hiding effects one at a time isolated the glass focus plates: each full-stage 1920×1080 field used `translate3d`, which promoted it to its own GPU layer masked by the rounded plate every frame. The fields never animate, so 0.3.6 uses a 2D `translate`. Release build: ~12 ms median, 2–4% janky. In preview screenshots, 18 of 24 look/focus/step cases are pixel-identical; the six List/Glass cases differ only on plate pixels, by at most 14/255.
 - Only List/Soft was measured on the TV; the other layouts and materials were checked for pixel parity in preview.
+
+**Cleanup batch 1 (31 October, owner-approved).** Following TV Detox's rules (disable, never uninstall; skip `PERSISTENT` apps and the app that saved Wi-Fi, here the setup app), 15 TCL apps were turned off with `pm disable-user --user 0`: `ttvs`, `interactive`, `channelplus`, `tv.plus`, `messagebox`, `esticker`, `exhibit`, `logkit`, `repairguide`, `usercenter`, `ocean.instructions`, `smartalexa`, `hotelmenu`, `tv.tclhome_passive`, `smartlink.core` (all `com.tcl.`). The undo list is kept privately; `pm enable <package>` reverses each. After a reboot: all 15 stayed off, Wi-Fi and internet worked, no crashes, Home service bound, Netflix → Home returned to CleanFrame, and the four HDMI inputs, Live TV (`com.tcl.tv`) and the input picker remained. At ~6 minutes uptime, `MemAvailable` went from ~880 MB to ~960 MB and used PSS fell only ~8 MB; swap readings were within noise. TCL analytics (`ttvs`, ~32 MB) no longer runs; the other apps were not yet running so soon after boot, so most of the benefit should show after longer uptime. Not yet observed: a physical HDMI switch and remote app buttons.
+
+That boot started on Google TV rather than CleanFrame: Google TV's Home opened ~22 s after boot and ~0.9 s before Android bound the Home service, so the service missed it (the previous boot won this race). Without window access the service cannot see what is in front, so 0.3.8 opens CleanFrame when the service connects within 60 s of boot, through the same setup, stock-choice and launch-loop guards. Installed in place on 31 October; the update rebound the service without opening CleanFrame (uptime past 60 s). Two reboots: each time Google TV's Home opened first and the service started 0.5–0.9 s later, then CleanFrame came to the front; no crashes; Netflix → Home still returned to CleanFrame. Risk: a TV set to power on into an HDMI input or Live TV would be switched to CleanFrame if the service binds within that minute; this TV boots to Home.
 
 Every in-place APK update also unbinds the Home service (the process is killed and TCL blocks the rebind), so the re-enable prompt appears after updates as well as reboots.
 
