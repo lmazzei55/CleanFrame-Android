@@ -42,4 +42,6 @@ Every in-place APK update also unbinds the Home service (the process is killed a
 
 ## Pending
 
+0.3.7 adds Home-service guards (first-setup check, a stock-Home choice kept until reboot, a stop after three launches that never stayed open). It compiles, but has not been installed or observed on the TV. Device checks: TV Home still keeps Google TV across Home presses, also after CleanFrame's process is stopped; a reboot returns Home to CleanFrame once the service is re-enabled; normal Home returns are unchanged.
+
 Physical remote feel and Home flash, all nine streaming launches through the UI,  HDMI/CEC and casting. The last rapid-key app-launch probe was inconclusive. Keep the PR draft until device acceptance. After a reboot, Home works only once the owner re-enables the service from the prompt.

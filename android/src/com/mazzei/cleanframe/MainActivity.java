@@ -56,6 +56,8 @@ public final class MainActivity extends Activity {
             } })
             .show();
     } };
+    // Counted as a working launch only once CleanFrame has stayed up, so a crash just after opening is a failure.
+    private final Runnable homeOk = new Runnable() { @Override public void run() { HomeService.launchSucceeded(MainActivity.this); } };
     // Brand mappings are hints; a target must also resolve to an installed TV launch activity.
     private static final String[][] BRANDS = {
         {"netflix", "com.netflix.ninja"},
@@ -118,8 +120,10 @@ public final class MainActivity extends Activity {
         }
         if (chosen == null) throw new IllegalArgumentException("The original TV home could not be found. Open TV settings to choose a Home screen.");
         home.setComponent(new ComponentName(chosen.activityInfo.packageName, chosen.activityInfo.name));
-        HomeService.stockChosen = true; // The owner asked for the original home; let it stay until CleanFrame returns.
-        startActivity(home.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        // The owner asked for the original home; let it stay until CleanFrame returns or the TV restarts.
+        if (!HomeService.chooseStock(this)) throw new IllegalStateException("Stock Home choice was not saved.");
+        try { startActivity(home.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); }
+        catch (RuntimeException e) { HomeService.clearStock(this); throw e; }
     }
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -150,12 +154,14 @@ public final class MainActivity extends Activity {
     }
     private void js(String script) { if (web != null) web.evaluateJavascript(script, null); }
     @Override protected void onResume() {
-        super.onResume(); resumed = true; HomeService.stockChosen = false;
+        super.onResume(); resumed = true; HomeService.clearStock(this);
         main.postDelayed(homeCheck, 1500); // Let a just-restarted process reconnect the service first.
+        main.postDelayed(homeOk, 1500);
         if (web != null) { web.onResume(); js("window.FrameVisibility && window.FrameVisibility(true)"); }
     }
     @Override protected void onPause() {
         resumed = false; main.removeCallbacks(homeCheck);
+        main.removeCallbacks(homeOk); HomeService.launchSucceeded(this); // Left normally, so it did not crash.
         // A dialog left behind another activity can lose key focus to the WebView on return; ask afresh.
         if (homePrompt != null) { homePrompt.dismiss(); homePrompt = null; }
         if (web != null) { js("window.FrameVisibility && window.FrameVisibility(false)"); web.onPause(); }
