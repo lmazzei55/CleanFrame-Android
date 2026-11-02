@@ -252,6 +252,7 @@ public final class MainActivity extends Activity {
                     else if ("home".equals(method)) { originalHome(); HomeService.launchSucceeded(MainActivity.this); }
                     // This firmware ignores the HOME role for the remote button, so the toggle is the Home accessibility service.
                     else if ("defaultHome".equals(method)) { startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)); HomeService.launchSucceeded(MainActivity.this); }
+                    else if ("vacuumStatus".equals(method)) { response = VacuumStatusReceiver.status(MainActivity.this); }
                     else if ("health".equals(method)) { showHealth(); }
                     else if ("backupStatus".equals(method)) { response.put("filePicker", backups.hasFilePicker()); }
                     else if (method != null && method.startsWith("backup.")) { backups.request(method.substring(7), target); }

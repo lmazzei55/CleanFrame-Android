@@ -49,13 +49,14 @@
   var LOOK_VALUES = { bg: ['dark', 'light', 'photo'], layout: ['list', 'dock'], apps: ['icons', 'both', 'text'], font: Object.keys(FONTS).filter(function (id) { return id === 'manrope' || PRIVATE_FONTS.indexOf(id) >= 0; }), controls: ['icons', 'both', 'text'], focus: ['type', 'glass'], material: ['soft', 'frost', 'tint'] };
   var LOOK_NAMES = { bg: 'Background', layout: 'Layout', apps: 'Apps', font: 'Font', controls: 'Home controls', focus: 'Focus', material: 'Material' };
   var VALUE_NAMES = { dark: 'Dark', light: 'Light', photo: 'Photo', list: 'List', dock: 'Dock', type: 'Type', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text' };
-  var UTIL = { art: ['Art Mode', 'art'], apps: ['All apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'] };
+  var UTIL = { art: ['Art Mode', 'art'], apps: ['All apps', 'apps'], vacuum: ['Vacuum cleaner', 'vacuum'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'] };
   var MSG = {
     leave: { title: 'Leave Home?', line: 'Open ' + HOME_LABEL + '?', note: '', actions: [['stay', 'Stay'], ['samsung', HOME_LABEL]] }
   };
   var SVG = {
     art: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="9.8" r="1.5"/><path d="m4.5 17.5 4.5-4.5 3 3 2.5-2.5 5 5"/>',
     apps: '<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/>',
+    vacuum: '<circle cx="12" cy="12" r="8.5"/><path d="M5.5 15.5h13M9 7.5h6"/><circle cx="12" cy="11" r="1"/>',
     arrange: '<path d="M4 8.5h14M15 5.5l3 3-3 3M20 15.5H6M9 12.5l-3 3 3 3"/>',
     settings: '<path d="m9 3-.6 2.4-2 1.2L4 6l-2 3.5L3.8 11v2L2 14.5 4 18l2.4-.6 2 1.2L9 21h6l.6-2.4 2-1.2 2.4.6 2-3.5-1.8-1.5v-2L22 9.5 20 6l-2.4.6-2-1.2L15 3Z"/><circle cx="12" cy="12" r="3.2"/>',
     home: '<path d="M4 11 12 4.5l8 6.5v8a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1Z"/>',
@@ -537,6 +538,7 @@
   function utilAction(u) {
     if (u === 'art') perform('Art Mode', FrameDevice.art);
     else if (u === 'apps') openApps();
+    else if (u === 'vacuum') push({ id: 'vacuum', f: { b: 0 } });
     else openSettings();
   }
   function addAppsRoute() { openEditor('home'); }
@@ -1021,6 +1023,11 @@
     }
   };
   function messageContent(t) { return t.content || MSG[t.msg]; }
+  V.vacuum = {
+    sheet: true,
+    key: function (t, k) { if (k === 'back' || k === 'ok') pop(); },
+    point: function (t, z) { if (z === 'head') pop(); }
+  };
   V.message = {
     sheet: true,
     key: function (t, k) {
@@ -1098,6 +1105,7 @@
     if (!sheet) renderHome(t);
     renderSheet(t, sheet);
     renderAppearance(t);
+    if (window.FrameVacuumView) window.FrameVacuumView(t.id === 'vacuum');
     renderFocusStatus(t);
   }
 
@@ -1572,6 +1580,7 @@
     }).join('');
   }
   var FRAMES = {
+    vacuum: function () { return '<h2 class="s-title">Eufy Omni C20</h2><p class="s-sub">Vacuum cleaner</p><div id="vacuumStatusPanel" class="vacuum-panel" role="status"></div><div class="vacuum-actions" data-slot="back"></div>'; },
     apps: function () {
       return '<h2 class="s-title" data-slot="title"></h2><p class="s-sub" data-slot="sub"></p><div class="s-head" data-slot="head"></div>'
         + '<div class="grid-view" data-slot="view"><div class="grid-in" data-slot="grid"></div></div>'
@@ -1594,6 +1603,7 @@
     return '<span class="panel-content">' + appMark(a, 120, 72, 58) + '<span class="label">' + esc(a.name) + '</span></span><span class="state">' + state + '</span>';
   }
   var FILLS = {
+    vacuum: function (t, el) { setHTML(el.back, headButtons([['back', 'Back', '', 'left']], 0, 'vacuum')); },
     apps: function (t, el) {
       var f = t.f, items = appsItems(), n = items.length, rows = Math.ceil(n / COLS), vis = 3, row = Math.floor(f.i / COLS);
       setHTML(el.title, 'All apps');
@@ -1843,7 +1853,8 @@
   function goScene(name) {
     if (top().id === 'wallpaper') cancelWallpaperTimer(top());
     S.stack = [S.stack[0]]; S.stack[0].f.zone = 'apps'; clearSession(); restoreLook();
-    if (name === 'apps') openApps();
+    if (name === 'vacuum') push({ id: 'vacuum', f: { b: 0 } });
+    else if (name === 'apps') openApps();
     else if (name === 'settings') openSettings();
     else if (name === 'appearance') { openSettings(); top().f.id = 'background'; S.settingsFocus = 'background'; openAppearance('background'); }
     else if (name === 'editor') { openSettings(); openEditor('settings'); }
@@ -1925,6 +1936,7 @@
   };
   window.FrameVisibility = function (visible) {
     nativeVisible = !!visible; heldKeys = {};
+    if (window.FrameVacuumVisibility) window.FrameVacuumVisibility(nativeVisible);
     if (!nativeVisible) { pauseRotation(); clearTimeout(clockTimer); }
     else { release(); after(); updateClock(); focusStage(); if (window.CleanFrameAndroid) refreshCatalog(); }
   };
@@ -1956,9 +1968,11 @@
   QA.ready = window.FrameReady;
   QA.nav = function () { var keys = arguments.length === 1 && Array.isArray(arguments[0]) ? arguments[0] : Array.prototype.slice.call(arguments); keys.forEach(function (key) { if (!NAV[key]) throw new Error('Unknown key'); press(NAV[key]); }); return QA.state(); };
   QA.look = function (patch) { setLook(patch, {}); return QA.state(); };
-  QA.scene = function (name) { if (['home', 'apps', 'settings', 'appearance', 'editor'].indexOf(name) < 0) throw new Error('Unknown view'); goScene(name); return QA.state(); };
+  QA.scene = function (name) { if (['home', 'apps', 'settings', 'appearance', 'editor', 'vacuum'].indexOf(name) < 0) throw new Error('Unknown view'); goScene(name); return QA.state(); };
   QA.activate = function (action) { return activate(action) ? QA.state() : null; };
   QA.actions = function () { var view = isSettingsDetail(top()) ? appearanceEl : sheetEl.hidden ? homeEl : sheetEl; return Array.prototype.filter.call(view.querySelectorAll('[data-action]'), renderedAction).map(function (el) { return el.getAttribute('data-action'); }); };
+
+  window.FrameOpenVacuum = function () { if (utils().indexOf('vacuum') >= 0) { push({ id: 'vacuum', f: { b: 0 } }); after(); } };
 
   /* ---------- Start ---------- */
   cueL.innerHTML = icon('left'); cueR.innerHTML = icon('right');

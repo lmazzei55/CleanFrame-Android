@@ -112,3 +112,7 @@ Code and asset licences remain those of upstream; see LICENSE and THIRD_PARTY_NO
 ## Regression tests
 
 `npm run check:native` compiles production HomeLaunchPolicy on JDK 17 and checks rapid pauses, stale callbacks, UI readiness, failure budgets and startup opt-in. `npm run check:remote` tests delayed/unstable foreground updates without network or credentials. `npm run check:android` checks startup preference persistence and failed saves through the real UI with a mocked native boundary. CI runs all three. These are not a substitute for physical remote, reboot and HDMI acceptance.
+
+## Vacuum experiment (separate branch)
+
+`feat/vacuum-status` explores a Eufy Omni C20 status screen, opened by a vacuum button between All apps and Settings, with a read-only Mac helper and shell-authorized ADB delivery. See [setup and verification limits](../docs/vacuum-status.md). It needs an awake Mac and an authorized ADB connection; it is not standalone TV connectivity or an accepted live integration yet.
