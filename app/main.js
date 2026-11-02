@@ -1,6 +1,7 @@
 /* CleanFrame Home. Static materials, local preferences and public Tizen app controls. */
 (function () {
   'use strict';
+  var PROFILE = window.FrameProfile || {}, HOME_LABEL = PROFILE.homeLabel || 'Samsung Home';
 
   /* ---------- Bundled data ---------- */
   var ASSETS = 'assets/', ICONS = ASSETS + 'icons/', WP = ASSETS + 'wallpapers/';
@@ -13,7 +14,7 @@
   var KEYS = { 37: 'left', 38: 'up', 39: 'right', 40: 'down', 13: 'ok', 27: 'back', 8: 'back', 10009: 'back', 461: 'back' };
   var FULL = 'Home holds nine apps. Remove one first.', LAST = 'Home needs one app';
 
-  var PRIMARY_APPS = [
+  var PRIMARY_APPS = PROFILE.favorites || [
     { id: 'stremio', name: 'Stremio', mark: true, appId: 'IkWsFHtOY9.Stremio' },
     { id: 'netflix', name: 'Netflix', mark: true, appId: 'org.tizen.netflix-app' },
     { id: 'disneyplus', name: 'Disney+', mark: true, appId: 'MCmYXNxgcu.DisneyPlus' },
@@ -33,7 +34,7 @@
     { id: '5', name: 'Every 5 minutes', min: 5 }, { id: '15', name: 'Every 15 minutes', min: 15 },
     { id: '60', name: 'Every hour', min: 60 }
   ];
-  var KEY = 'cleanframe.home.v1', storageOk = true, catalog = { loading: false, loaded: false, error: null, request: 0, revision: 0 };
+  var KEY = PROFILE.storageKey || 'cleanframe.home.v1', storageOk = true, catalog = { loading: false, loaded: false, error: null, request: 0, revision: 0 };
   var QA = window.ShoreQA = { minuteMs: window.ShoreQA && window.ShoreQA.minuteMs || 60000 };
   var FONTS = {
     manrope: { name: 'Manrope', family: 'Manrope', display: 600, ui: 500, clock: 500 },
@@ -50,7 +51,7 @@
   var VALUE_NAMES = { dark: 'Dark', light: 'Light', photo: 'Photo', list: 'List', dock: 'Dock', type: 'Type', glass: 'Glass', soft: 'Soft', frost: 'Frost', tint: 'Clear tint', icons: 'Icons', both: 'Icons and text', text: 'Text' };
   var UTIL = { art: ['Art Mode', 'art'], apps: ['All apps', 'apps'], arrange: ['Arrange', 'arrange'], settings: ['Settings', 'settings'] };
   var MSG = {
-    leave: { title: 'Leave Home?', line: 'Open Samsung Home?', note: '', actions: [['stay', 'Stay'], ['samsung', 'Samsung Home']] }
+    leave: { title: 'Leave Home?', line: 'Open ' + HOME_LABEL + '?', note: '', actions: [['stay', 'Stay'], ['samsung', HOME_LABEL]] }
   };
   var SVG = {
     art: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="9.8" r="1.5"/><path d="m4.5 17.5 4.5-4.5 3 3 2.5-2.5 5 5"/>',
@@ -315,7 +316,7 @@
   function safeId(id) { return typeof id === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,160}$/.test(id) && ['constructor', 'prototype', '__proto__'].indexOf(id) < 0; }
   function safeIcon(path) { return typeof path === 'string' && path.length < 2048 && /^(?:\/[^\/]|file:\/\/\/|wgt-package:\/\/\/)/.test(path) ? path : ''; }
   function load() {
-    var keys = [KEY, 'cleanframe.shore.v1'], raw, saved, i;
+    var keys = PROFILE.storageKey ? [KEY] : [KEY, 'cleanframe.shore.v1'], raw, saved, i;
     for (i = 0; i < keys.length; i++) {
       try {
         raw = localStorage.getItem(keys[i]);
@@ -360,6 +361,42 @@
       if (a && PRIMARY.indexOf(key) < 0 && !out.appRecords.some(function (r) { return r.id === key; })) out.appRecords.push({ id: a.id, appId: a.appId, name: a.name, brand: a.brand || '', icon: a.icon || '' });
     });
     return out;
+  }
+  function backupDocument() {
+    var prefs = serialise(S.c);
+    prefs.appRecords.forEach(function (record) { delete record.icon; });
+    return { format: 'cleanframe.android.backup', version: 1, createdAt: new Date().toISOString(), preferences: prefs };
+  }
+  function checkedBackup(data) {
+    if (!data || data.format !== 'cleanframe.android.backup' || data.version !== 1) throw new Error('Choose a supported CleanFrame Android backup.');
+    var p = data.preferences, axes = ['bg', 'layout', 'apps', 'controls', 'focus', 'material'], ids = [], records;
+    if (!p || typeof p !== 'object' || Array.isArray(p) || !p.look || typeof p.look !== 'object') throw new Error('The backup has no valid preferences.');
+    axes.forEach(function (axis) { if (LOOK_VALUES[axis].indexOf(p.look[axis]) < 0) throw new Error('The backup contains an invalid appearance.'); });
+    if (!wall(p.look.wall) || typeof p.look.font !== 'string' || !/^[a-z]{1,20}$/.test(p.look.font) || !MODES.some(function (m) { return m.id === p.mode; })) throw new Error('The backup contains an invalid wallpaper or rotation.');
+    if (!Array.isArray(p.home) || !p.home.length || p.home.length > CAP || !Array.isArray(p.appRecords) || p.appRecords.length > 256) throw new Error('The backup contains an invalid app list.');
+    p.home.forEach(function (id) { if (!safeId(id) || ids.indexOf(id) >= 0) throw new Error('The backup contains an invalid app.'); ids.push(id); });
+    records = p.appRecords;
+    records.forEach(function (record) { if (!record || !safeId(record.id) || !safeId(record.appId) || typeof record.name !== 'string' || !record.name.trim() || record.name.length > 160) throw new Error('The backup contains an invalid app record.'); });
+    p.home.forEach(function (id) { if (!app(id) && !records.some(function (record) { return record.id === id; })) throw new Error('The backup is missing an app record.'); });
+    return p;
+  }
+  if (PROFILE.backup) {
+    window.FrameBackupCheck = function (data) {
+      try { var p = checkedBackup(data); return { ok: true, apps: p.home.length, wallpaper: wall(p.look.wall).name }; }
+      catch (e) { return { ok: false, message: e.message }; }
+    };
+    window.FrameRestore = function (data) {
+      var previousApps = APPS.slice();
+      try {
+        var p = checkedBackup(data), copy = JSON.parse(JSON.stringify(p));
+        copy.appRecords.forEach(function (record) { delete record.icon; });
+        var c = clean(copy);
+        // Commit once. Native reloads only after this succeeds; failed writes preserve current UI.
+        localStorage.setItem(KEY, JSON.stringify(serialise(c)));
+        return { ok: true };
+      } catch (e) { return { ok: false, message: 'Nothing changed. ' + e.message }; }
+      finally { APPS = previousApps; }
+    };
   }
   function initialise() {
     var saved = load(), initial; S.c = clean(saved); initial = next(S.c.home.slice(), S.c.recent.slice());
@@ -478,7 +515,7 @@
         if (!safeId(id) || !safeId(entry.appId) || ALPHA.indexOf(id) >= 0) return;
         a = app(id);
         if (!a) { a = { id: id }; APPS.push(a); }
-        a.appId = entry.appId; a.brand = entry.brand || ''; a.mark = !!entry.brand;
+        a.appId = entry.appId; a.brand = entry.brand || ''; a.mark = PROFILE.favorites ? (entry.mark === true) : !!entry.brand;
         a.icon = safeIcon(entry.icon);
         a.name = PRIMARY.indexOf(id) >= 0 ? PRIMARY_APPS[PRIMARY.indexOf(id)].name : String(entry.name).slice(0, 160);
         ALPHA.push(id);
@@ -491,7 +528,7 @@
   }
 
   /* ---------- Navigation targets ---------- */
-  function utils() { return ['art', 'apps', 'settings']; }
+  function utils() { return PROFILE.utilities || ['art', 'apps', 'settings']; }
   /* prev/next run along the apps; out goes to the controls, inn comes back (or to a per-app action). */
   function axes() {
     var v = S.c.layout === 'list';
@@ -821,7 +858,7 @@
       { id: 'typography', label: 'Typography', value: FONTS[S.c.font].name },
       { id: 'focus', label: 'Focus', value: VALUE_NAMES[S.c.focus] + (materialApplies() ? ', ' + VALUE_NAMES[S.c.material] : '') },
       { id: 'editor', label: 'Apps on Home', value: n + (n === 1 ? ' app' : ' apps') },
-      { id: 'samsung', label: 'Samsung', value: 'Home and TV settings' }];
+      { id: 'samsung', label: PROFILE.systemName || 'Samsung', value: 'Home and TV settings' }];
   }
   function settingsIds() { return settingsRows().map(function (r) { return r.id; }); }
   V.settings = {
@@ -841,7 +878,7 @@
     if (id === 'editor') openEditor('settings');
     else openAppearance(id);
   }
-  var DETAIL_NAMES = { background: 'Background', layout: 'Layout', typography: 'Typography', focus: 'Focus', rotation: 'Rotation', samsung: 'Samsung' };
+  var DETAIL_NAMES = { background: 'Background', layout: 'Layout', typography: 'Typography', focus: 'Focus', rotation: 'Rotation', startup: 'Startup', backup: 'Backup and restore', samsung: PROFILE.systemName || 'Samsung' };
   function choice(axis, value, disabled) {
     return { action: axis === 'mode' ? 'rotation.' + value : 'choice.' + axis + '.' + value, axis: axis, value: value, disabled: !!disabled,
       label: axis === 'font' ? FONTS[value].name : axis === 'mode' ? MODES.filter(function (m) { return m.id === value; })[0].name : value === 'both' ? 'Both' : VALUE_NAMES[value] };
@@ -867,13 +904,30 @@
     ];
     if (t.group === 'rotation') return [{ id: 'mode', title: '', items: options('mode', MODES.map(function (m) { return m.id; }), flat),
       reason: flat ? 'Choose Photo in Background to use rotation.' : 'Timed changes pause while Settings or another panel is open.' }];
-    return [{ id: 'samsung', title: '', items: [
-      { action: 'samsung.home', label: 'Samsung Home', description: 'Open Samsung’s Home screen' },
+    var systemItems = [
+      { action: 'samsung.home', label: HOME_LABEL, description: PROFILE.homeDescription || 'Open Samsung’s Home screen' },
       { action: 'samsung.settings', label: 'TV settings', description: 'Picture, sound and network settings' }
+    ];
+    if (PROFILE.defaultHome) systemItems.push({ action: 'android.health', label: 'Home health', description: 'Check the Home button and get recovery steps' });
+    if (t.group === 'startup' && PROFILE.bootLaunch) {
+      var startup = PROFILE.bootLaunch;
+      return [{ id: 'startup', title: '', items: [
+        { action: 'android.boot.off', label: 'Startup: follow TV', description: (startup.loaded && !startup.enabled ? 'Selected. ' : '') + 'No forced launch when the Home service connects' },
+        { action: 'android.boot.on', label: 'Startup: open CleanFrame', description: (startup.loaded && startup.enabled ? 'Selected. ' : '') + 'May replace HDMI or Live TV during the first minute after a restart' }
+      ] }];
+    }
+    if (t.group === 'backup' && PROFILE.backup) return [{ id: 'backup', title: '', items: [
+      { action: 'android.backup.save', label: 'Save a snapshot', description: 'Keep a copy on this TV; removed if CleanFrame is uninstalled' },
+      { action: 'android.backup.restore', label: 'Restore snapshot', description: 'Review and confirm before replacing your preferences' },
+      { action: 'android.backup.export', label: 'Export backup file', disabled: PROFILE.backup.filePicker === false, description: PROFILE.backup.filePicker === false ? 'Unavailable: this TV has no document picker' : 'Choose a file location; requires a TV document picker' },
+      { action: 'android.backup.import', label: 'Import backup file', disabled: PROFILE.backup.filePicker === false, description: PROFILE.backup.filePicker === false ? 'Unavailable: this TV has no document picker' : 'Choose a CleanFrame JSON backup; review before restoring' }
     ] }];
+    if (PROFILE.bootLaunch) systemItems.push({ action: 'android.startup', label: 'Startup', description: 'Choose whether CleanFrame opens after a restart' });
+    if (PROFILE.backup) systemItems.push({ action: 'android.backups', label: 'Backup and restore', description: 'Save your appearance and app arrangement' });
+    return [{ id: 'samsung', title: '', items: systemItems }];
   }
   function detailRows(t) {
-    var rows = [[{ action: 'settings.back', label: t.group === 'rotation' ? 'Background' : 'Settings' }]];
+    var rows = [[{ action: 'settings.back', label: t.group === 'rotation' ? 'Background' : t.group === 'startup' || t.group === 'backup' ? 'Android TV' : 'Settings' }]];
     detailSections(t).forEach(function (section) {
       var enabled = section.items.filter(function (item) { return !item.disabled; });
       if (section.horizontal && enabled.length) rows.push(enabled);
@@ -914,8 +968,25 @@
     else if (item.axis) { patch[item.axis] = item.value; setLook(patch, { row: item.axis }); }
     else if (item.action === 'background.wallpaper') openWallpaper();
     else if (item.action === 'background.rotation') openAppearance('rotation');
-    else if (item.action === 'samsung.home') perform('Samsung Home', FrameDevice.home);
+    else if (item.action === 'samsung.home') perform(HOME_LABEL, FrameDevice.home);
     else if (item.action === 'samsung.settings') perform('TV settings', FrameDevice.settings);
+    else if (item.action === 'android.health') perform('Home health', FrameDevice.health);
+    else if (item.action === 'android.startup') openAppearance('startup');
+    else if (item.action === 'android.backups') openAppearance('backup');
+    else if (item.action.indexOf('android.backup.') === 0) {
+      perform('Backup and restore', function (done) {
+        var action = item.action.split('.').pop();
+        FrameDevice.backup(action, action === 'save' || action === 'export' ? JSON.stringify(backupDocument()) : '', done);
+      });
+    }
+    else if (item.action === 'android.boot.on' || item.action === 'android.boot.off') {
+      perform('TV startup', function (done) {
+        FrameDevice.bootLaunch(item.action === 'android.boot.on' ? 'on' : 'off', function (err, result) {
+          if (!err) { PROFILE.bootLaunch.loaded = true; PROFILE.bootLaunch.enabled = result.enabled; render(); }
+          done(err);
+        });
+      });
+    }
   }
   V.appearance = {
     norm: function (t) {
@@ -923,7 +994,7 @@
       var axis = { background: 'bg', layout: 'layout', typography: 'font', focus: 'focus', rotation: 'mode' }[t.group];
       rows.forEach(function (items) { items.forEach(function (item) {
         if (item.action === t.f.action) exists = true;
-        if (item.axis === axis && item.value === S.c[axis]) applied = item;
+        if (axis && item.axis === axis && item.value === S.c[axis]) applied = item;
       }); });
       if (!exists) detailFocus(t, applied || (rows[1] || rows[0])[0], 0);
       if (t.f.column === undefined) t.f.column = detailLocation(t).column;
@@ -957,7 +1028,7 @@
       if (k === 'left') t.f.b = Math.max(0, t.f.b - 1);
       else if (k === 'right') t.f.b = Math.min(A.length - 1, t.f.b + 1);
       else if (k === 'back') pop();
-      else if (k === 'ok') { a = A[t.f.b][0]; pop(); if (a === 'samsung') perform('Samsung Home', FrameDevice.home); }
+      else if (k === 'ok') { a = A[t.f.b][0]; pop(); if (a === 'samsung') perform(HOME_LABEL, FrameDevice.home); }
     },
     point: function (t, z, i) { if (z === 'act') { t.f.b = i; this.key(t, 'ok'); } }
   };
@@ -1302,7 +1373,9 @@
   function fieldTransform(el, x, y, width, height) {
     el._placement = { x: x, y: y, width: width, height: height };
     el.style.transformOrigin = (x + width / 2) + 'px ' + (y + height / 2) + 'px';
-    el.style.transform = 'translate3d(' + (-x) + 'px,' + (-y) + 'px,0)' + (S.c.bg === 'photo' && S.c.material === 'tint' && !REDUCED_MOTION ? ' scale(1.04)' : '');
+    // A 2D transform keeps the static full-stage field painted into its small rounded plate. translate3d
+    // promoted it to its own 1920px GPU layer, masked every frame: ~32ms frames on the TCL TV versus ~11ms.
+    el.style.transform = 'translate(' + (-x) + 'px,' + (-y) + 'px)' + (S.c.bg === 'photo' && S.c.material === 'tint' && !REDUCED_MOTION ? ' scale(1.04)' : '');
   }
   function renderList(hs) {
     var items = hs.items, n = items.length, compact = hs.mode === 'arrange', pitch = compact ? PH_COMPACT_PITCH : PH_PITCH;
@@ -1393,7 +1466,7 @@
         + ' data-z="detail" data-i="0" data-id="' + item.action + '" data-action="' + item.action + '">' + inner
         + (item.axis ? '<span class="setting-tick" aria-hidden="true">' + (applied ? icon('check') : '') + '</span>' : '') + '</button>';
     }
-    setHTML(appearanceBack, command({ action: 'settings.back', label: t.group === 'rotation' ? 'Background' : 'Settings' }, icon('left') + '<span>' + (t.group === 'rotation' ? 'Background' : 'Settings') + '</span>', 'setting-back'));
+    setHTML(appearanceBack, command({ action: 'settings.back', label: t.group === 'rotation' ? 'Background' : t.group === 'startup' || t.group === 'backup' ? 'Android TV' : 'Settings' }, icon('left') + '<span>' + (t.group === 'rotation' ? 'Background' : t.group === 'startup' || t.group === 'backup' ? 'Android TV' : 'Settings') + '</span>', 'setting-back'));
     setHTML(appearanceRows, detailSections(t).map(function (section) {
       return '<section class="setting-section' + (section.horizontal ? ' is-horizontal' : '') + ' section-' + section.id + '">'
         + (section.title ? '<h3 class="setting-label" id="setting-' + section.id + '">' + section.title + '</h3>' : '')
@@ -1416,7 +1489,7 @@
         + command({ action: 'settings.retry', label: 'Try again' }, '<span>Try again</span>', 'setting-retry');
     }
     setHTML(appearanceStatus, status);
-    hint = selected.disabled ? '' : selected.action === 'settings.back' ? 'Return to ' + (t.group === 'rotation' ? 'Background' : 'Settings') : selected.action === 'settings.retry' ? 'Retry this change' : selected.axis ? 'Apply selected setting' : selected.action === 'background.wallpaper' ? 'Choose a wallpaper' : selected.action === 'background.rotation' ? 'Choose a rotation interval' : 'Open on the TV';
+    hint = selected.disabled ? '' : selected.action === 'settings.back' ? 'Return to ' + (t.group === 'rotation' ? 'Background' : t.group === 'startup' || t.group === 'backup' ? 'Android TV' : 'Settings') : selected.action === 'settings.retry' ? 'Retry this change' : selected.axis ? 'Apply selected setting' : selected.action === 'background.wallpaper' ? 'Choose a wallpaper' : selected.action === 'background.rotation' ? 'Choose a rotation interval' : 'Open on the TV';
     setHTML(appearanceDesc, hint ? '<span class="remote-key">OK</span><span>' + esc(hint) + '</span>' : '');
   }
   function renderWallpaper(t) {
@@ -1741,8 +1814,8 @@
   }
 
   /* ---------- Lifecycle and remote input ---------- */
-  var clockTimer = 0, rotationTimer = 0, activeSince = 0, activeMs = 0, rotationKey = '';
-  function rotationActive() { return !document.hidden && top().id === 'home' && S.c.bg === 'photo' && !S.pending && mode().min > 0; }
+  var clockTimer = 0, rotationTimer = 0, activeSince = 0, activeMs = 0, rotationKey = '', nativeVisible = true;
+  function rotationActive() { return nativeVisible && !document.hidden && top().id === 'home' && S.c.bg === 'photo' && !S.pending && mode().min > 0; }
   function pauseRotation() {
     if (activeSince) { activeMs += Date.now() - activeSince; activeSince = 0; }
     clearTimeout(rotationTimer); rotationTimer = 0;
@@ -1761,7 +1834,7 @@
   }
   function updateClock() {
     clearTimeout(clockTimer);
-    if (document.hidden) return;
+    if (!nativeVisible || document.hidden) return;
     if (top().id === 'home' || isSettingsDetail(top())) renderCaption(top(), homeState(top()));
     clockTimer = setTimeout(updateClock, 60000 - (Date.now() % 60000) + 30);
   }
@@ -1777,10 +1850,14 @@
     after();
   }
   function fit() {
-    var scale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+    // Android WebView can expand innerWidth to the unscaled 1920px stage.
+    // clientWidth/clientHeight describe the visible layout viewport instead.
+    var width = document.documentElement.clientWidth || window.innerWidth;
+    var height = document.documentElement.clientHeight || window.innerHeight;
+    var scale = Math.min(width / 1920, height / 1080);
     stage.style.transform = 'scale(' + scale + ')';
-    stage.style.left = ((window.innerWidth - 1920 * scale) / 2) + 'px';
-    stage.style.top = ((window.innerHeight - 1080 * scale) / 2) + 'px';
+    stage.style.left = ((width - 1920 * scale) / 2) + 'px';
+    stage.style.top = ((height - 1080 * scale) / 2) + 'px';
   }
   function renderedAction(el) {
     return el.getClientRects().length > 0 && window.getComputedStyle(el).visibility !== 'hidden';
@@ -1843,6 +1920,14 @@
     else { release(); after(); updateClock(); focusStage(); }
   });
   window.addEventListener('resize', fit);
+  window.FrameRemoteKey = function (key) {
+    if (['left', 'right', 'up', 'down', 'ok', 'back'].indexOf(key) >= 0) press(key);
+  };
+  window.FrameVisibility = function (visible) {
+    nativeVisible = !!visible; heldKeys = {};
+    if (!nativeVisible) { pauseRotation(); clearTimeout(clockTimer); }
+    else { release(); after(); updateClock(); focusStage(); if (window.CleanFrameAndroid) refreshCatalog(); }
+  };
 
   /* Readable browser checks use the real state and actions, without fake outcomes. */
   var NAV = { left: 'left', right: 'right', up: 'up', down: 'down', ok: 'ok', enter: 'ok', back: 'back', escape: 'back' };
@@ -1867,7 +1952,8 @@
     Array.prototype.forEach.call(active, function (el) { if (renderedAction(el)) { count++; if (el.getAttribute('data-action') === action) name = el.getAttribute('aria-label') || el.textContent.replace(/\s+/g, ' ').trim(); } });
     return { view: top().id, settingsGroup: top().id === 'wallpaper' ? 'wallpaper' : top().id === 'appearance' ? top().group : null, focus: name, focusAction: action, focusCount: count, wallpaper: S.wallShown, zone: top().f.zone || null };
   };
-  QA.ready = function () { return fontsReady && !S.pending && !!S.shown && S.shown.bg === S.c.bg && S.shown.wall === S.c.wall && S.shown.font === S.c.font; };
+  window.FrameReady = function () { return fontsReady && !S.pending && !!S.shown && S.shown.bg === S.c.bg && S.shown.wall === S.c.wall && S.shown.font === S.c.font; };
+  QA.ready = window.FrameReady;
   QA.nav = function () { var keys = arguments.length === 1 && Array.isArray(arguments[0]) ? arguments[0] : Array.prototype.slice.call(arguments); keys.forEach(function (key) { if (!NAV[key]) throw new Error('Unknown key'); press(NAV[key]); }); return QA.state(); };
   QA.look = function (patch) { setLook(patch, {}); return QA.state(); };
   QA.scene = function (name) { if (['home', 'apps', 'settings', 'appearance', 'editor'].indexOf(name) < 0) throw new Error('Unknown view'); goScene(name); return QA.state(); };
@@ -1879,4 +1965,13 @@
   initialise();
   setLook({}, { transient: true, startup: true });
   norm(); render(); fit(); focusStage(); updateClock(); syncRotation();
+  if (window.CleanFrameAndroid) {
+    refreshCatalog();
+    FrameDevice.backupStatus(function (err, result) {
+      if (!err && typeof result.filePicker === 'boolean') { PROFILE.backup.filePicker = result.filePicker; norm(); render(); }
+    });
+    FrameDevice.bootLaunch('get', function (err, result) {
+      if (!err) { PROFILE.bootLaunch.loaded = true; PROFILE.bootLaunch.enabled = result.enabled; render(); }
+    });
+  }
 })();

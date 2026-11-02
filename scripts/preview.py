@@ -1,6 +1,7 @@
 """Serve the actual TV UI and the retained design gallery on this Mac."""
 import argparse
 import io
+import socketserver
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -11,6 +12,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class PreviewServer(ThreadingHTTPServer):
     request_queue_size = 128
+
+    def server_bind(self):
+        # HTTPServer's getfqdn() can stall on VPN/reverse-DNS setups even for loopback.
+        # This development server needs only its bound address, never a hostname lookup.
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
 
 
 class Preview(SimpleHTTPRequestHandler):
