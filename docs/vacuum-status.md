@@ -1,62 +1,35 @@
-# Eufy Omni C20 status experiment
+# Eufy Omni C20 — TV-only experiment
 
-Branch: `feat/vacuum-status`, based on `main` after PR #2. Target: Eufy Omni C20 / T2280, Eufy app, no Home Assistant. Experimental APK version: `0.5.0-vacuum.1`.
+Branch `feat/vacuum-status`, draft PR #3. Version `0.5.0-vacuum.2` / code15. The vacuum button between All apps and Settings opens status and Start cleaning, Pause, Return to dock, and Back. Home has no permanent card. Start requires a native confirmation with Cancel focused by default.
 
-## Architecture
+## Runtime
 
-The Mac authenticates with Eufy using a separately prepared community SDK, reads cloud device snapshots, decodes only work status, battery and error code, and sends those fields over the already-authorized Android ADB connection. No MQTT connection is opened and no cleaning, docking, scene, sound or map command is sent. Cloud snapshots are labeled as snapshots, not guaranteed live robot telemetry.
+The TV connects directly to Eufy through native HTTPS and certificate/hostname-verified TLS MQTT. It identifies exactly one C20/T2280, decodes bounded protobuf status fields, reads cloud status every30s and receives MQTT updates. Commands publish once with QoS0; there is no automatic replay or offline queue. Sent is not success: the UI waits for a matching observed state transition or reports an unconfirmed result. Offline/stale/error conditions reject commands. Connections close when leaving the screen or pausing the app; no boot/background service is added. Eufy cloud connectivity is still required, but the Mac and ADB are not runtime dependencies.
 
-The TV has no added Internet permission or HTTP listener. A receiver protected by `android.permission.DUMP` accepts the ADB shell feed without launching the app. A vacuum utility button sits between All apps and Settings. It opens a dedicated read-only status screen; Back returns focus to that button. Status reads stop when the screen is closed. The Home page has no persistent card, and status is excluded from preference backups. Old data becomes unavailable after 90 seconds, including after a restart. Receiving an already-old snapshot does not renew its age. The Mac must be awake and ADB must remain authorized/reachable. This transport is a development experiment, not a consumer deployment architecture.
+Android Internet permission is used by native code only. The WebView still blocks networking and external navigation. Account/session data is encrypted with an Android Keystore AES-GCM key, never passed to JavaScript or included in preference backups. TLS client keys are parsed in memory. Uninstall/clear data removes the connection.
 
-## Private setup
+## One-time setup
 
-Use Node 22+, Python 3.10+, git/npm and the project's existing authorized ADB setup. From the repository root:
-
-```sh
-python3 scripts/eufy/setup.py --prepare
-python3 scripts/eufy/setup.py --gui   # macOS dialogs, hidden password
-# Or omit --gui to use terminal input and getpass.
-```
-
-The SDK is pinned to `martijnpoppen/eufy-clean@8872307101a7032aa9f359781a3783fc50b0d380`, installed separately under ignored `.local/eufy-sdk-review`; dependency lifecycle scripts are disabled and its compiler/resource-copy steps run explicitly. Its own source/license stay there. No Eufy dependency is added to the TV package or root npm dependencies. Setup checks the revision before use. SDK diagnostics are discarded in an isolated worker because upstream can print sensitive account/device data. Only whitelisted stage/HTTP codes and normalized results cross that boundary.
-
-Credentials, session tokens and discovery records stay under ignored `.local/eufy-status/`, directory mode 0700, files mode 0600. Credentials are stored locally in plaintext for this experiment; deleting that directory removes the saved login. Never paste its contents or SDK diagnostics into chat/issues. An SDK workaround turns an empty login response into an error so its intended newer-to-legacy fallback actually runs. A local 15-minute guard prevents retries after HTTP 429; this is a conservative client cooldown, not a promise about Eufy's reset time. Successful MQTT-account HTTP sessions are cached locally for one hour; the watcher uses HTTP reads, not MQTT.
-
-Create private `.local/eufy-status/tv.json` using your existing ADB server and device target (never commit real values):
-
-```json
-{"port":5048,"serial":"YOUR_TV_HOST:5555"}
-```
-
-After the experimental APK is installed with the existing signing key:
+The experiment currently uses the previously configured private account on the Mac for one-time provisioning. After installing the APK with the same persistent signing key and opening CleanFrame:
 
 ```sh
-node scripts/eufy/watch.mjs          # foreground status helper; Ctrl+C stops
-node scripts/eufy/watch.mjs --once   # one reading and TV delivery
-node scripts/eufy/watch.mjs --clear  # hide the card; no Eufy login
+python3 scripts/eufy/provision-tv.py
 ```
 
-Do not repeatedly run setup/probes to poll status. The watcher reuses one session and reads every 30 seconds. If the provider stops responding, the TV expires its last sample. Do not disable account two-factor protection to make the connector work.
+Requires Python cryptography and the existing private `.local/eufy-status/` setup. The helper fetches a TV Keystore public key, hybrid-encrypts the account/session material and sends ciphertext through the shell-permission-protected provisioning receiver. Plain credentials never enter ADB arguments or output. The TV presents a Connect/Cancel consent dialog before saving. The previous Mac status helper must be stopped. A full on-TV account setup/disconnect flow remains a product improvement; no account-management claim is made here.
 
-## Preview and checks
+Legacy Mac discovery/status scripts remain for reference. Their SDK is pinned to `martijnpoppen/eufy-clean@8872307101a7032aa9f359781a3783fc50b0d380` in ignored `.local/eufy-sdk-review`; they are not packaged or required by the native runtime. Credentials, tokens, device targets, signing keys and captures remain ignored. Do not print or publish `.local/` contents.
 
-Browser only: `/home/?platform=android&vacuumDemo=cleaning` shows clearly labeled sample data. The demo is refused when the real Android bridge exists. It does not connect to Eufy or configure the TV.
+## Verification and limits
 
-```sh
-npm run check
-npm run check:vacuum
-npm run check:android
-npm run check:native
-CLEANFRAME_PUBLIC_FONTS=1 npm run check:browser
-```
+On2 November2026, the physical TCL connected directly with the Mac helper stopped and displayed Docked/100% plus Controls connected. Encrypted provisioning and Keystore storage worked. Start confirmation defaulted Cancel; Cancel was exercised and Home restored. The owner explicitly requested keeping the robot docked and will test commands later: no physical Start/Pause/Dock command was sent.
 
-Verification on 2 November 2026: corrected local login identified exactly one C20/T2280 and returned novel-protocol status fields. An incorrect-password attempt preceded it; later authentication retries received HTTP 429, so automatic authentication retries were stopped. After the local cooldown elapsed, the watcher authenticated successfully and decoded Docked / 100% from the C20. The physical TV displayed that reading, matching the owner’s phone app (100%, fully charged). A second cloud read 30 seconds later delivered the same state/battery. The helper remained running on the awake Mac. This validates the first real status path; it is not long-term polling acceptance. The SDK convenience getter that defaults failed status decoding to Charging is not used.
+Passed locally:344 interaction checks,60 Android checks,23 vacuum UI checks,8 isolated SDK/decoder tests,25 Home-policy checks,10 freshness checks and9 native protocol checks, plus source/public checks/export and APK compilation/signing. Browser checks mock native APIs; protocol checks do not prove robot movement. Initial native connection reused the existing encrypted session. Fresh native login/session renewal, command execution/transition matching, long-running reconnect, background/standby and broader device compatibility remain unverified. Keep PR draft pending acceptance and independent review of the native networking/crypto/lifecycle code.
 
-Physical TV receiver test: experimental APK installed in place; the protected receiver acknowledged an explicitly unavailable sample and the Home card visibly showed Status unavailable / No recent status received. The test feed was cleared afterward. The initial Home-card design was then replaced with an on-demand screen at the owner’s request. No successful fake cleaning/battery reading was pushed to the TV. Pure policy tests cover stale delivery, clock skew, restart invalidation and overflow; isolated SDK tests cover diagnostic secret suppression and ambiguous discovery. The on-demand button placement and dedicated status screen were physically verified after replacing the initial card design. Transitions during a cleaning cycle, long-running sessions/token expiry and physical Mac-sleep behavior remain pending. Native/JS freshness policies have automated coverage; the robot was never commanded to start cleaning for this test.
+The community API is unofficial and may change. HTTP429 causes a15-minute local backoff. Unsupported/malformed status stays unknown; failed decoding never defaults to Charging. Commands use the vacuum's existing Eufy cleaning settings. No maps, rooms or settings commands are exposed.
 
 ## Sources
 
-- [Community Eufy Clean integration](https://github.com/jeppesens/eufy-clean): lists C20/T2280; connection transport depends on discovered device/account metadata; map support differs by transport. Listing is not physical acceptance of this unit.
-- [Eufy Clean SDK](https://github.com/martijnpoppen/eufy-clean): independent community connector, requires account login; retain its license if redistributing its code.
-- [Home Assistant EufyHome](https://www.home-assistant.io/integrations/eufy/): built-in integration currently lists lights/switches, so it is not the vacuum integration needed here.
-- [Android receiver permissions](https://developer.android.com/guide/topics/manifest/receiver-element#prmsn): sender must hold the receiver's declared permission.
+- [Community integration](https://github.com/jeppesens/eufy-clean) — C20/T2280 support and protocol reference.
+- [Community SDK](https://github.com/martijnpoppen/eufy-clean) — authentication and command schemas. Retain its license if distributing its source; SDK source remains separate locally.
+- [Android receiver permissions](https://developer.android.com/guide/topics/manifest/receiver-element#prmsn) — provisioning sender restrictions.

@@ -12,6 +12,12 @@ try {
   check(JSON.stringify(await page.locator('#utils [data-action]').evaluateAll(nodes => nodes.map(n => n.dataset.action))) === JSON.stringify(['util.apps', 'util.vacuum', 'util.settings']), 'Vacuum button is between All apps and Settings');
   await page.evaluate(() => ShoreQA.activate('util.vacuum'));
   check((await page.locator('.vacuum-status-content').innerText()).includes('Not connected'), 'Vacuum button opens dedicated unconfigured screen');
+  check((await page.evaluate(() => ShoreQA.state().focusAction)) === 'vacuum.back', 'Default focus is Back, not Start');
+  check((await page.locator('[data-action="vacuum.start"]').getAttribute('aria-disabled')) === 'true', 'Offline controls are marked unavailable');
+  await page.evaluate(() => FrameVacuumStatus({configured:true,state:'docked',battery:100,receivedAt:Date.now(),controlsReady:true,command:{phase:'sent'}}));
+  check((await page.locator('.vacuum-status-content').innerText()).includes('Waiting for a matching state change'), 'Transport send is not shown as success');
+  check((await page.locator('.vacuum-status-content').innerText()).includes('Docked'), 'Sending does not optimistically change vacuum state');
+
   await page.evaluate(() => FrameVacuumStatus({ configured: true, state: 'cleaning', battery: 0, receivedAt: Date.now() }));
   check((await page.locator('.vacuum-status-content').innerText()).includes('Cleaning · 0%'), 'Zero battery is retained');
   await page.evaluate(() => FrameVacuumStatus({ configured: true, state: 'charging', battery: 999, receivedAt: Date.now() }));

@@ -40,6 +40,8 @@
     settings: function (done) { request('settings', '', done); },
     defaultHome: function (done) { request('defaultHome', '', done); },
     backupStatus: function (done) { request('backupStatus', '', done); },
+    vacuumCommand: function (action, done) { request('vacuumCommand', action, done); },
+    vacuumView: function (value, done) { request('vacuumView', value, done); },
     vacuumStatus: function (done) { request('vacuumStatus', '', done); },
     health: function (done) { request('health', '', done); },
     backup: function (action, data, done) { request('backup.' + action, data, done); },

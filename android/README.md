@@ -115,4 +115,4 @@ Code and asset licences remain those of upstream; see LICENSE and THIRD_PARTY_NO
 
 ## Vacuum experiment (separate branch)
 
-`feat/vacuum-status` explores a Eufy Omni C20 status screen, opened by a vacuum button between All apps and Settings, with a read-only Mac helper and shell-authorized ADB delivery. See [setup and verification limits](../docs/vacuum-status.md). It needs an awake Mac and an authorized ADB connection; it is not standalone TV connectivity or an accepted live integration yet.
+`feat/vacuum-status` adds TV-only Eufy C20 status and Start/Pause/Dock controls behind a vacuum button between All apps and Settings. Native HTTPS/TLS replaces the Mac runtime helper. One-time encrypted setup currently uses the Mac; see [setup and acceptance limits](../docs/vacuum-status.md). Physical command execution and session renewal remain pending; keep the robot docked until the owner tests it.

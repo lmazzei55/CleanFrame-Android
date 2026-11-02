@@ -17,7 +17,8 @@ if not javac or not java:
 with tempfile.TemporaryDirectory(prefix='cleanframe-native-') as temp:
     sources = [root / 'android/src/com/mazzei/cleanframe/HomeLaunchPolicy.java',
         root / 'android/src/com/mazzei/cleanframe/VacuumFeedPolicy.java',
+        root / 'android/src/com/mazzei/cleanframe/EufyProto.java',
         *sorted((root / 'tests/native').rglob('*.java'))]
     subprocess.run([javac, '-d', temp, *map(str, sources)], check=True)
-    for name in ['HomeLaunchPolicyTest', 'VacuumFeedPolicyTest']:
+    for name in ['HomeLaunchPolicyTest', 'VacuumFeedPolicyTest','EufyProtoTest']:
         subprocess.run([java, '-cp', temp, 'com.mazzei.cleanframe.' + name], check=True)

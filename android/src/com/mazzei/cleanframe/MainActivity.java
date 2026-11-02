@@ -41,6 +41,7 @@ public final class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
     private static final String START = "https://" + HOST + "/assets/ui/index.html";
     private WebView web;
+    private EufyNative eufy;
     private boolean resumed;
     private BackupController backups;
     private AlertDialog healthDialog;
@@ -166,6 +167,7 @@ public final class MainActivity extends Activity {
     }
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        eufy=new EufyNative(this);EufyProvision.owner=new java.lang.ref.WeakReference<>(this);
         web = new WebView(this);
         backups = new BackupController(this, web, state);
         WebSettings settings = web.getSettings();
@@ -202,13 +204,16 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onPause() {
         resumed = false; main.removeCallbacks(homeCheck);
+        if(eufy!=null)eufy.visible(false);
         main.removeCallbacks(homeOk); homeSession.pause();
         // A dialog left behind another activity can lose key focus to the WebView on return; ask afresh.
         if (homePrompt != null) { homePrompt.dismiss(); homePrompt = null; }
         if (web != null) { js("window.FrameVisibility && window.FrameVisibility(false)"); web.onPause(); }
         super.onPause();
     }
+    public void provisionEufy(String value){eufy.provision(value);}
     @Override protected void onDestroy() {
+        if(eufy!=null)eufy.destroy();
         if (backups != null) backups.destroy();
         if (healthDialog != null) healthDialog.dismiss();
         if (homePrompt != null) homePrompt.dismiss();
@@ -252,7 +257,9 @@ public final class MainActivity extends Activity {
                     else if ("home".equals(method)) { originalHome(); HomeService.launchSucceeded(MainActivity.this); }
                     // This firmware ignores the HOME role for the remote button, so the toggle is the Home accessibility service.
                     else if ("defaultHome".equals(method)) { startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)); HomeService.launchSucceeded(MainActivity.this); }
-                    else if ("vacuumStatus".equals(method)) { response = VacuumStatusReceiver.status(MainActivity.this); }
+                    else if ("vacuumView".equals(method)) { eufy.visible("open".equals(target)); }
+                    else if ("vacuumCommand".equals(method)) { eufy.confirm(target); }
+                    else if ("vacuumStatus".equals(method)) { response = eufy.status(); }
                     else if ("health".equals(method)) { showHealth(); }
                     else if ("backupStatus".equals(method)) { response.put("filePicker", backups.hasFilePicker()); }
                     else if (method != null && method.startsWith("backup.")) { backups.request(method.substring(7), target); }
