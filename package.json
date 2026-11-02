@@ -7,6 +7,8 @@
     "dev": "python3 scripts/preview.py",
     "check": "node --check app/main.js && node --check app/device.js && node --check app/android.js && python3 scripts/check.py",
     "check:android": "node scripts/check-android.mjs",
+    "check:native": "python3 scripts/check-native.py",
+    "check:remote": "python3 -m unittest discover -s tests -p 'test_remote_*.py'",
     "build:android": "python3 scripts/build-android.py",
     "package": "python3 scripts/package.py",
     "tv:info": "python3 scripts/tv.py info",

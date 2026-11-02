@@ -33,10 +33,19 @@ try {
   await tv.addInitScript(({ favorites, packages, labels }) => {
     window.calls = [];
     window.failLaunch = false;
+    window.failBootSave = false;
     window.CleanFrameAndroid = { request(method, id, target) {
       window.calls.push({ method, target });
-      const response = method === 'apps' ? { apps: packages.map((pkg, i) => ({ appId: pkg, name: labels[i], brand: favorites[i], mark: !['paramount', 'peacock'].includes(favorites[i]), icon: '' })) }
-        : window.failLaunch ? { error: 'This app is not installed.' } : {};
+      var bootResponse;
+      if (method === 'bootLaunch') {
+        if (window.failBootSave && target !== 'get') bootResponse = { error: 'The startup preference could not be saved.' };
+        else {
+          if (target !== 'get') localStorage.setItem('__native_boot', String(target === 'on'));
+          bootResponse = { enabled: localStorage.getItem('__native_boot') === 'true' };
+        }
+      }
+      const response = bootResponse || (method === 'apps' ? { apps: packages.map((pkg, i) => ({ appId: pkg, name: labels[i], brand: favorites[i], mark: !['paramount', 'peacock'].includes(favorites[i]), icon: '' })) }
+        : window.failLaunch ? { error: 'This app is not installed.' } : {});
       setTimeout(() => window.CleanFrameAndroidResult(id, response), 0);
     } };
   }, { favorites, packages, labels });
@@ -70,6 +79,21 @@ try {
   await tv.evaluate(() => ShoreQA.activate('android.defaultHome'));
   await tv.waitForFunction(() => calls.at(-1).method === 'defaultHome');
   check((await tv.evaluate(() => calls.at(-1).method)) === 'defaultHome', 'Home selector uses its own native action');
+  check((await tv.locator('[data-action="android.boot.off"]').innerText()).includes('Selected.'), 'Boot takeover defaults off');
+  await tv.evaluate(() => ShoreQA.activate('android.boot.on'));
+  await tv.waitForFunction(() => document.querySelector('[data-action="android.boot.on"]')?.textContent.includes('Selected.'));
+  check(await tv.evaluate(() => localStorage.getItem('__native_boot') === 'true'), 'Boot takeover requires an explicit saved opt-in');
+  await tv.reload();
+  await tv.waitForFunction(() => window.ShoreQA?.ready() && window.FrameProfile.bootLaunch.loaded);
+  await tv.evaluate(() => { ShoreQA.scene('settings'); ShoreQA.activate('settings.group.samsung'); });
+  check((await tv.locator('[data-action="android.boot.on"]').innerText()).includes('Selected.'), 'Native startup setting is read after relaunch');
+  await tv.evaluate(() => { window.failBootSave = true; ShoreQA.activate('android.boot.off'); });
+  await tv.waitForFunction(() => document.body.innerText.includes('could not be saved'));
+  check(await tv.evaluate(() => FrameProfile.bootLaunch.enabled), 'Failed startup save keeps the last applied choice');
+  await tv.evaluate(() => { FrameRemoteKey('back'); window.failBootSave = false; ShoreQA.activate('android.boot.off'); });
+  await tv.waitForFunction(() => document.querySelector('[data-action="android.boot.off"]')?.textContent.includes('Selected.'));
+  check(await tv.evaluate(() => localStorage.getItem('__native_boot') === 'false'), 'Boot takeover can be turned off again');
+  await tv.screenshot({ path: root + '.local/qa/android-startup-720.png' });
   await tv.evaluate(() => {
     var saved = JSON.parse(localStorage.getItem('cleanframe.android.v1'));
     saved.mode = '5'; localStorage.setItem('cleanframe.android.v1', JSON.stringify(saved));

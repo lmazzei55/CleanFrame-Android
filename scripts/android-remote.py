@@ -11,6 +11,7 @@ from pathlib import Path
 import subprocess
 import sys
 import xml.etree.ElementTree as XML
+from remote_wait import home_return
 
 ROOT = Path(__file__).resolve().parents[1]
 REMOTE = ROOT / '.local/android/remote'
@@ -59,11 +60,13 @@ def make_remote():
 async def connected():
     remote = make_remote()
     try:
-        await remote.async_connect()
+        await asyncio.wait_for(remote.async_connect(), 10)
     except InvalidAuth:
         raise SystemExit('Not paired with this TV. Run: python3 scripts/android-remote.py pair')
     except CannotConnect:
         raise SystemExit('Cannot reach the TV at ' + host + '. Check it is on and on this network.')
+    except asyncio.TimeoutError:
+        raise SystemExit('The TV connection timed out. Check the TV and network.')
     # The TV pushes the foreground app shortly after connecting.
     for _ in range(20):
         if remote.current_app:
@@ -73,19 +76,17 @@ async def connected():
 
 
 async def foreground_after(remote, seconds):
-    previous = remote.current_app
-    for _ in range(int(seconds * 10)):
-        await asyncio.sleep(0.1)
-        if remote.current_app != previous:
-            break
-    await asyncio.sleep(0.5)
+    # A transient intermediate app is not necessarily the final destination.
+    await asyncio.sleep(seconds)
     return remote.current_app
 
 
 async def pair():
     REMOTE.mkdir(parents=True, exist_ok=True)
+    REMOTE.chmod(0o700)
     remote = make_remote()
     await remote.async_generate_cert_if_missing()
+    KEY.chmod(0o600)
     name, _ = await remote.async_get_name_and_mac()
     print('Pairing with ' + name + '. The TV shows a code.')
     await remote.async_start_pairing()
@@ -126,16 +127,18 @@ async def main():
             remote.send_launch_app_command(args.values[0])
             print('Foreground: ' + (await foreground_after(remote, 4) or 'unknown'))
         else:
-            # Presses Home once and reports where it went: tells whether CleanFrame's
-            # Home service is bound (it is unbound after every reboot or APK update).
+            if remote.current_app == app_id:
+                raise SystemExit('CleanFrame is already in front. Start another app before checking Home return.')
+            if not remote.current_app:
+                raise SystemExit('Foreground app is unknown. Open another app and retry; no Home key was sent.')
+            # Test functional return, not whether the service is bound or intentionally bypassed.
             print('Pressing Home on the TV.')
-            remote.send_key_command('HOME')
-            landed = await foreground_after(remote, 3)
+            confirmed, landed = await home_return(remote, app_id)
             print('Foreground: ' + (landed or 'unknown'))
-            if landed == app_id:
+            if confirmed:
                 print('Home returns to CleanFrame.')
             elif landed == STOCK_HOME:
-                raise SystemExit('Home went to Google TV. Open CleanFrame and re-enable the Home button from its prompt.')
+                raise SystemExit('Home stayed on Google TV. The original Home may be selected intentionally, or Home return may need recovery. Open CleanFrame to check.')
             else:
                 raise SystemExit('Home result is unclear; check the TV.')
     finally:

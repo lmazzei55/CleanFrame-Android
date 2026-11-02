@@ -873,6 +873,11 @@
       { action: 'samsung.settings', label: 'TV settings', description: 'Picture, sound and network settings' }
     ];
     if (PROFILE.defaultHome) systemItems.push({ action: 'android.defaultHome', label: 'Home button', description: 'Turn on CleanFrame Home button in Accessibility so Home returns here' });
+    if (PROFILE.bootLaunch) {
+      var startup = PROFILE.bootLaunch;
+      systemItems.push({ action: 'android.boot.off', label: 'Startup: follow TV', description: (startup.loaded && !startup.enabled ? 'Selected. ' : '') + 'No forced launch when the Home service connects' });
+      systemItems.push({ action: 'android.boot.on', label: 'Startup: open CleanFrame', description: (startup.loaded && startup.enabled ? 'Selected. ' : '') + 'May replace HDMI or Live TV during the first minute after a restart' });
+    }
     return [{ id: 'samsung', title: '', items: systemItems }];
   }
   function detailRows(t) {
@@ -920,6 +925,14 @@
     else if (item.action === 'samsung.home') perform(HOME_LABEL, FrameDevice.home);
     else if (item.action === 'samsung.settings') perform('TV settings', FrameDevice.settings);
     else if (item.action === 'android.defaultHome') perform('Home button', FrameDevice.defaultHome);
+    else if (item.action === 'android.boot.on' || item.action === 'android.boot.off') {
+      perform('TV startup', function (done) {
+        FrameDevice.bootLaunch(item.action === 'android.boot.on' ? 'on' : 'off', function (err, result) {
+          if (!err) { PROFILE.bootLaunch.loaded = true; PROFILE.bootLaunch.enabled = result.enabled; render(); }
+          done(err);
+        });
+      });
+    }
   }
   V.appearance = {
     norm: function (t) {
@@ -1885,7 +1898,8 @@
     Array.prototype.forEach.call(active, function (el) { if (renderedAction(el)) { count++; if (el.getAttribute('data-action') === action) name = el.getAttribute('aria-label') || el.textContent.replace(/\s+/g, ' ').trim(); } });
     return { view: top().id, settingsGroup: top().id === 'wallpaper' ? 'wallpaper' : top().id === 'appearance' ? top().group : null, focus: name, focusAction: action, focusCount: count, wallpaper: S.wallShown, zone: top().f.zone || null };
   };
-  QA.ready = function () { return fontsReady && !S.pending && !!S.shown && S.shown.bg === S.c.bg && S.shown.wall === S.c.wall && S.shown.font === S.c.font; };
+  window.FrameReady = function () { return fontsReady && !S.pending && !!S.shown && S.shown.bg === S.c.bg && S.shown.wall === S.c.wall && S.shown.font === S.c.font; };
+  QA.ready = window.FrameReady;
   QA.nav = function () { var keys = arguments.length === 1 && Array.isArray(arguments[0]) ? arguments[0] : Array.prototype.slice.call(arguments); keys.forEach(function (key) { if (!NAV[key]) throw new Error('Unknown key'); press(NAV[key]); }); return QA.state(); };
   QA.look = function (patch) { setLook(patch, {}); return QA.state(); };
   QA.scene = function (name) { if (['home', 'apps', 'settings', 'appearance', 'editor'].indexOf(name) < 0) throw new Error('Unknown view'); goScene(name); return QA.state(); };
@@ -1897,5 +1911,10 @@
   initialise();
   setLook({}, { transient: true, startup: true });
   norm(); render(); fit(); focusStage(); updateClock(); syncRotation();
-  if (window.CleanFrameAndroid) refreshCatalog();
+  if (window.CleanFrameAndroid) {
+    refreshCatalog();
+    FrameDevice.bootLaunch('get', function (err, result) {
+      if (!err) { PROFILE.bootLaunch.loaded = true; PROFILE.bootLaunch.enabled = result.enabled; render(); }
+    });
+  }
 })();

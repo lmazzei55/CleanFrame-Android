@@ -12,6 +12,7 @@
   window.FrameProfile = {
     storageKey: 'cleanframe.android.v1', systemName: 'Android TV', homeLabel: 'TV Home',
     homeDescription: 'Open the original TCL home screen', utilities: ['apps', 'settings'], defaultHome: true,
+    bootLaunch: { loaded: false, enabled: false },
     favorites: favorites.map(function (item) {
       return { id: item[0], name: item[1], mark: item[2], appId: 'brand.' + item[0] };
     })
@@ -29,7 +30,7 @@
   }
   window.CleanFrameAndroidResult = function (id, response) {
     if (!Object.prototype.hasOwnProperty.call(pending, id)) return;
-    pending[id](response.error ? { message: response.error } : null, response.apps);
+    pending[id](response.error ? { message: response.error } : null, response.apps !== undefined ? response.apps : response);
   };
   window.FrameAndroidDevice = {
     launchApp: function (id, done) { request('launch', id, done); },
@@ -38,6 +39,7 @@
     home: function (done) { request('home', '', done); },
     settings: function (done) { request('settings', '', done); },
     defaultHome: function (done) { request('defaultHome', '', done); },
+    bootLaunch: function (value, done) { request('bootLaunch', value, done); },
     art: function (done) { done({ message: 'Samsung Art Mode is not available on Android TV.' }); }
   };
 }());

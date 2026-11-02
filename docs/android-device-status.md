@@ -56,3 +56,7 @@ Every in-place APK update also unbinds the Home service (the process is killed a
 Not exercised: the crash-loop stop (needs a deliberately broken build) and the stock choice surviving process death (on this firmware the service dies with the process and is not rebound).
 
 Physical remote feel and Home flash, all nine streaming launches through the UI,  HDMI/CEC and casting. The last rapid-key app-launch probe was inconclusive. Keep the PR draft until device acceptance. After a reboot, Home works only once the owner re-enables the service from the prompt.
+
+## 0.3.9 review fixes — 2 November 2026
+
+The Home failure budget now survives rapid pauses/overlays; success requires a usable WebView for 1.5 seconds or an explicit user-directed exit. Boot takeover is off by default and can be enabled explicitly under Settings → Android TV. The remote Home check now waits for a fresh, stable CleanFrame event instead of failing on transient Google TV. Native policy and transport-free remote regression tests are added to CI. Physical verification of 0.3.9 is pending; the earlier device results above describe their stated versions.

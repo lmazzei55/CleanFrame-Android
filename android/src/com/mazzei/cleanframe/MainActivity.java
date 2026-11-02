@@ -14,6 +14,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.view.KeyEvent;
 import android.view.View;
@@ -24,6 +25,7 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.ValueCallback;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.ByteArrayInputStream;
@@ -56,8 +58,17 @@ public final class MainActivity extends Activity {
             } })
             .show();
     } };
-    // Counted as a working launch only once CleanFrame has stayed up, so a crash just after opening is a failure.
-    private final Runnable homeOk = new Runnable() { @Override public void run() { HomeService.launchSucceeded(MainActivity.this); } };
+    private final HomeLaunchPolicy.Session homeSession = new HomeLaunchPolicy.Session();
+    private final Runnable homeOk = new Runnable() { @Override public void run() {
+        if (!resumed || web == null) return;
+        final int token = homeSession.generation();
+        web.evaluateJavascript("Boolean(window.FrameReady && window.FrameReady())", new ValueCallback<String>() {
+            @Override public void onReceiveValue(String value) {
+                if (homeSession.observeReady(token, "true".equals(value), SystemClock.elapsedRealtime())) HomeService.launchSucceeded(MainActivity.this);
+                if (homeSession.shouldPoll(token)) main.postDelayed(homeOk, 250);
+            }
+        });
+    } };
     // Brand mappings are hints; a target must also resolve to an installed TV launch activity.
     private static final String[][] BRANDS = {
         {"netflix", "com.netflix.ninja"},
@@ -155,13 +166,14 @@ public final class MainActivity extends Activity {
     private void js(String script) { if (web != null) web.evaluateJavascript(script, null); }
     @Override protected void onResume() {
         super.onResume(); resumed = true; HomeService.clearStock(this);
+        homeSession.resume();
         main.postDelayed(homeCheck, 1500); // Let a just-restarted process reconnect the service first.
         main.postDelayed(homeOk, 1500);
         if (web != null) { web.onResume(); js("window.FrameVisibility && window.FrameVisibility(true)"); }
     }
     @Override protected void onPause() {
         resumed = false; main.removeCallbacks(homeCheck);
-        main.removeCallbacks(homeOk); HomeService.launchSucceeded(this); // Left normally, so it did not crash.
+        main.removeCallbacks(homeOk); homeSession.pause();
         // A dialog left behind another activity can lose key focus to the WebView on return; ask afresh.
         if (homePrompt != null) { homePrompt.dismiss(); homePrompt = null; }
         if (web != null) { js("window.FrameVisibility && window.FrameVisibility(false)"); web.onPause(); }
@@ -204,10 +216,17 @@ public final class MainActivity extends Activity {
                         Intent intent = launchIntent(resolveBrand(target));
                         if (intent == null) throw new IllegalArgumentException("This app is not installed or has no TV launch screen. Install it from the TV’s Play Store, or choose it in All apps.");
                         startActivity(intent);
-                    } else if ("settings".equals(method)) startActivity(new Intent(Settings.ACTION_SETTINGS));
-                    else if ("home".equals(method)) originalHome();
+                        HomeService.launchSucceeded(MainActivity.this);
+                    } else if ("settings".equals(method)) { startActivity(new Intent(Settings.ACTION_SETTINGS)); HomeService.launchSucceeded(MainActivity.this); }
+                    else if ("home".equals(method)) { originalHome(); HomeService.launchSucceeded(MainActivity.this); }
                     // This firmware ignores the HOME role for the remote button, so the toggle is the Home accessibility service.
-                    else if ("defaultHome".equals(method)) startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+                    else if ("defaultHome".equals(method)) { startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)); HomeService.launchSucceeded(MainActivity.this); }
+                    else if ("bootLaunch".equals(method)) {
+                        if ("on".equals(target) || "off".equals(target)) {
+                            if (!HomeService.setBootLaunch(MainActivity.this, "on".equals(target))) throw new IllegalArgumentException("The startup preference could not be saved.");
+                        } else if (!"get".equals(target)) throw new IllegalArgumentException("Invalid startup preference.");
+                        response.put("enabled", HomeService.bootLaunchEnabled(MainActivity.this));
+                    }
                     else throw new IllegalArgumentException("Unsupported TV action.");
                 } catch (Exception e) {
                     try { response.put("error", e instanceof IllegalArgumentException ? e.getMessage() : "The TV could not open this screen. Use the remote’s Home button to return."); }

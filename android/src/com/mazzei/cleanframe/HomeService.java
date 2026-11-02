@@ -22,17 +22,13 @@ public final class HomeService extends AccessibilityService {
     static final String STOCK_PACKAGE = "com.google.android.apps.tv.launcherx";
     private static final String STOCK_HOME = STOCK_PACKAGE + ".home.HomeActivity";
     // After this many launches that never stayed open, stop redirecting until CleanFrame is opened by hand.
-    private static final int MAX_FAILURES = 3;
-    private static final long LAUNCH_GRACE_MS = 3000, DUPLICATE_MS = 500;
-    // TCL binds this service ~1 s after Google TV's boot Home opens (about 22 s after boot), so that event is missed.
-    private static final long BOOT_WINDOW_MS = 60000;
     private static volatile boolean connected;
-    private static long lastLaunch = -DUPLICATE_MS;
+    private static long lastLaunch = -HomeLaunchPolicy.DUPLICATE_MS;
 
     @Override protected void onServiceConnected() {
         connected = true;
-        // Without window access the front screen is unknown; just after boot it is Google TV's Home.
-        if (SystemClock.elapsedRealtime() < BOOT_WINDOW_MS) openCleanFrame();
+        // Foreground is unknown at bind. Boot takeover therefore requires explicit owner opt-in.
+        if (HomeLaunchPolicy.launchOnBind(bootLaunchEnabled(this), SystemClock.elapsedRealtime())) openCleanFrame();
     }
     @Override public boolean onUnbind(Intent intent) { connected = false; return super.onUnbind(intent); }
 
@@ -47,13 +43,11 @@ public final class HomeService extends AccessibilityService {
         // During first setup, and after the owner chose the original home this boot, Google TV keeps Home.
         if (!setupComplete(this) || stockChosen(this)) return;
         long now = SystemClock.elapsedRealtime();
-        if (now - lastLaunch < DUPLICATE_MS) return;
         SharedPreferences prefs = prefs(this);
         long pending = prefs.getLong("pending", -1);
-        if (pending > now) pending = -1; // Saved before a reboot; the elapsed clock restarted.
-        if (pending >= 0 && now - pending < LAUNCH_GRACE_MS) return; // Give a slow launch time to resume.
-        int failures = prefs.getInt("failures", 0) + (pending >= 0 ? 1 : 0);
-        if (failures >= MAX_FAILURES) { prefs.edit().remove("pending").putInt("failures", failures).commit(); return; }
+        int failures = HomeLaunchPolicy.failuresForAttempt(now, lastLaunch, pending, prefs.getInt("failures", 0));
+        if (failures < 0) return;
+        if (failures >= HomeLaunchPolicy.MAX_FAILURES) { prefs.edit().remove("pending").putInt("failures", failures).commit(); return; }
         // Saved before launching: a crash can take this service's process down with the activity.
         if (!prefs.edit().putLong("pending", now).putInt("failures", failures).commit()) return;
         lastLaunch = now;
@@ -69,8 +63,11 @@ public final class HomeService extends AccessibilityService {
 
     private static SharedPreferences prefs(Context context) { return context.getSharedPreferences("home_service", Context.MODE_PRIVATE); }
 
+    static boolean bootLaunchEnabled(Context context) { return prefs(context).getBoolean("launch_at_boot", false); }
+    static boolean setBootLaunch(Context context, boolean enabled) { return prefs(context).edit().putBoolean("launch_at_boot", enabled).commit(); }
+
     private static boolean setupComplete(Context context) {
-        return Settings.Secure.getInt(context.getContentResolver(), "user_setup_complete", 1) == 1;
+        return Settings.Secure.getInt(context.getContentResolver(), "user_setup_complete", 0) == 1;
     }
 
     private static int bootCount(Context context) { return Settings.Global.getInt(context.getContentResolver(), Settings.Global.BOOT_COUNT, -1); }
@@ -91,10 +88,10 @@ public final class HomeService extends AccessibilityService {
         return Math.abs(bootTime() - prefs.getLong("stock_boot_time", 0)) < 5000; // Wall-clock fallback.
     }
 
-    /** CleanFrame stayed open, or was left normally: the last launch worked. Also re-arms a stopped redirect. */
+    /** UI stayed usable, or the owner explicitly launched another screen. Also re-arms a stopped redirect. */
     static void launchSucceeded(Context context) {
         prefs(context).edit().remove("pending").remove("failures").commit();
-        lastLaunch = -DUPLICATE_MS;
+        lastLaunch = -HomeLaunchPolicy.DUPLICATE_MS;
     }
 
     /**
