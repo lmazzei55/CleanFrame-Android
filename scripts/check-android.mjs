@@ -44,7 +44,7 @@ try {
           bootResponse = { enabled: localStorage.getItem('__native_boot') === 'true' };
         }
       }
-      const response = bootResponse || (method === 'apps' ? { apps: packages.map((pkg, i) => ({ appId: pkg, name: labels[i], brand: favorites[i], mark: !['paramount', 'peacock'].includes(favorites[i]), icon: '' })) }
+      const response = (method === 'backupStatus' ? { filePicker: !window.noPicker } : null) || bootResponse || (method === 'apps' ? { apps: packages.map((pkg, i) => ({ appId: pkg, name: labels[i], brand: favorites[i], mark: !['paramount', 'peacock'].includes(favorites[i]), icon: '' })) }
         : window.failLaunch ? { error: 'This app is not installed.' } : {});
       setTimeout(() => window.CleanFrameAndroidResult(id, response), 0);
     } };
@@ -75,17 +75,18 @@ try {
   await tv.evaluate(() => new Promise(resolve => FrameDevice.settings(() => resolve())));
   check((await tv.evaluate(() => calls.at(-1).method)) === 'settings', 'TV settings bridge action');
   await tv.evaluate(() => { window.failLaunch = false; ShoreQA.scene('settings'); ShoreQA.activate('settings.group.samsung'); });
-  check((await tv.locator('body').innerText()).includes('Home button'), 'Default Home settings is available');
-  await tv.evaluate(() => ShoreQA.activate('android.defaultHome'));
-  await tv.waitForFunction(() => calls.at(-1).method === 'defaultHome');
-  check((await tv.evaluate(() => calls.at(-1).method)) === 'defaultHome', 'Home selector uses its own native action');
+  check((await tv.locator('body').innerText()).includes('Home health'), 'Home health is available');
+  await tv.evaluate(() => ShoreQA.activate('android.health'));
+  await tv.waitForFunction(() => calls.at(-1).method === 'health');
+  check((await tv.evaluate(() => calls.at(-1).method)) === 'health', 'Health screen uses its own native action');
+  await tv.evaluate(() => ShoreQA.activate('android.startup'));
   check((await tv.locator('[data-action="android.boot.off"]').innerText()).includes('Selected.'), 'Boot takeover defaults off');
   await tv.evaluate(() => ShoreQA.activate('android.boot.on'));
   await tv.waitForFunction(() => document.querySelector('[data-action="android.boot.on"]')?.textContent.includes('Selected.'));
   check(await tv.evaluate(() => localStorage.getItem('__native_boot') === 'true'), 'Boot takeover requires an explicit saved opt-in');
   await tv.reload();
   await tv.waitForFunction(() => window.ShoreQA?.ready() && window.FrameProfile.bootLaunch.loaded);
-  await tv.evaluate(() => { ShoreQA.scene('settings'); ShoreQA.activate('settings.group.samsung'); });
+  await tv.evaluate(() => { ShoreQA.scene('settings'); ShoreQA.activate('settings.group.samsung'); ShoreQA.activate('android.startup'); });
   check((await tv.locator('[data-action="android.boot.on"]').innerText()).includes('Selected.'), 'Native startup setting is read after relaunch');
   await tv.evaluate(() => { window.failBootSave = true; ShoreQA.activate('android.boot.off'); });
   await tv.waitForFunction(() => document.body.innerText.includes('could not be saved'));
@@ -94,6 +95,51 @@ try {
   await tv.waitForFunction(() => document.querySelector('[data-action="android.boot.off"]')?.textContent.includes('Selected.'));
   check(await tv.evaluate(() => localStorage.getItem('__native_boot') === 'false'), 'Boot takeover can be turned off again');
   await tv.screenshot({ path: root + '.local/qa/android-startup-720.png' });
+  await tv.evaluate(() => { FrameRemoteKey('back'); ShoreQA.activate('android.backups'); });
+  check((await tv.locator('body').innerText()).includes('Save a snapshot'), 'Backup screen reachable with the remote');
+  check((await tv.locator('.appearance .is-focus[data-action]').getAttribute('data-action')) === 'android.backup.save', 'New backup screen initially focuses Save, not Restore');
+  await tv.evaluate(() => ShoreQA.activate('android.backup.save'));
+  await tv.waitForFunction(() => calls.at(-1).method === 'backup.save');
+  const backup = await tv.evaluate(() => JSON.parse(calls.at(-1).target));
+  check(backup.format === 'cleanframe.android.backup' && backup.version === 1, 'Versioned Android backup document');
+  check(!JSON.stringify(backup).includes('__native_boot') && !('launch_at_boot' in backup.preferences), 'Backup excludes native permissions/startup');
+  check(await tv.evaluate(data => FrameBackupCheck(data).ok, backup), 'Exported document validates for restore');
+  const original = await tv.evaluate(() => localStorage.getItem('cleanframe.android.v1'));
+  for (const bad of [null, { ...backup, version: 999 }, { ...backup, format: 'another-app' },
+    { ...backup, preferences: { ...backup.preferences, home: ['__proto__'] } },
+    { ...backup, preferences: { ...backup.preferences, home: [] } },
+    { ...backup, preferences: { ...backup.preferences, home: ['netflix', 'netflix'] } },
+    { ...backup, preferences: { ...backup.preferences, look: { ...backup.preferences.look, bg: 'bad' } } }]) {
+    check(!(await tv.evaluate(data => FrameRestore(data).ok, bad)), 'Malformed/unsupported backup rejected');
+    check((await tv.evaluate(() => localStorage.getItem('cleanframe.android.v1'))) === original, 'Rejected restore preserves preferences');
+  }
+  check(await tv.evaluate(data => {
+    var old = Storage.prototype.setItem;
+    Storage.prototype.setItem = function () { throw new Error('Storage full'); };
+    try { return !FrameRestore(data).ok; } finally { Storage.prototype.setItem = old; }
+  }, backup), 'Storage failure rejects restore');
+  check((await tv.evaluate(() => localStorage.getItem('cleanframe.android.v1'))) === original, 'Failed write preserves saved preferences');
+  const changed = structuredClone(backup);
+  changed.preferences.home = [...changed.preferences.home].reverse();
+  changed.preferences.look.layout = 'dock';
+  changed.preferences.mode = '15';
+  check(await tv.evaluate(data => FrameRestore(data).ok, changed), 'Valid restore commits preferences');
+  await tv.reload();
+  await tv.waitForFunction(() => window.ShoreQA?.ready());
+  check(JSON.stringify(await tv.evaluate(() => ShoreQA.state().home)) === JSON.stringify([...favorites].reverse()), 'Restored arrangement survives reload');
+  check((await tv.evaluate(() => ShoreQA.state().layout)) === 'dock', 'Restored appearance applied');
+  check(await tv.evaluate(() => localStorage.getItem('__native_boot') === 'false'), 'Restore leaves startup unchanged');
+  await tv.evaluate(() => { ShoreQA.scene('settings'); ShoreQA.activate('settings.group.samsung'); ShoreQA.activate('android.backups'); });
+  await tv.screenshot({ path: root + '.local/qa/android-backup-720.png' });
+  await tv.evaluate(() => { window.noPicker = true; });
+  await tv.evaluate(() => new Promise(resolve => FrameDevice.backupStatus((err, result) => { FrameProfile.backup.filePicker = result.filePicker; resolve(); })));
+  await tv.evaluate(() => { FrameRemoteKey('back'); ShoreQA.activate('android.backups'); });
+  check((await tv.locator('body').innerText()).includes('Unavailable: this TV has no document picker'), 'Unsupported file picker is explained');
+  await tv.evaluate(() => { FrameRemoteKey('down'); FrameRemoteKey('down'); FrameRemoteKey('down'); });
+  check((await tv.locator('.appearance .is-focus[data-action]').getAttribute('data-action')) === 'android.backup.restore', 'Unavailable export is skipped by remote focus');
+  const callsBeforeDisabled = await tv.evaluate(() => calls.length);
+  await tv.evaluate(() => ShoreQA.activate('android.backup.export'));
+  check((await tv.evaluate(() => calls.length)) === callsBeforeDisabled, 'Unavailable export cannot dispatch through pointing');
   await tv.evaluate(() => {
     var saved = JSON.parse(localStorage.getItem('cleanframe.android.v1'));
     saved.mode = '5'; localStorage.setItem('cleanframe.android.v1', JSON.stringify(saved));

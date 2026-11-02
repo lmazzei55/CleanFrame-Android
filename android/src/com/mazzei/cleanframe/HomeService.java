@@ -99,6 +99,19 @@ public final class HomeService extends AccessibilityService {
      * and Android does not retry; on this firmware an app cannot re-trigger the bind itself. True when the
      * owner still has the service enabled but it is not running, so CleanFrame should ask them to toggle it.
      */
+    static String health(Context context) {
+        ComponentName self = new ComponentName(context, HomeService.class);
+        AccessibilityManager manager = (AccessibilityManager) context.getSystemService(Context.ACCESSIBILITY_SERVICE);
+        if (manager == null) return "unknown";
+        if (connected) return "running";
+        for (AccessibilityServiceInfo service : manager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)) {
+            if (self.equals(ComponentName.unflattenFromString(service.getId()))) return "running";
+        }
+        String enabled = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+        if (enabled != null) for (String entry : enabled.split(":")) if (self.equals(ComponentName.unflattenFromString(entry))) return "paused";
+        return "off";
+    }
+
     static boolean needsReenable(Context context) {
         ComponentName self = new ComponentName(context, HomeService.class);
         AccessibilityManager manager = (AccessibilityManager) context.getSystemService(Context.ACCESSIBILITY_SERVICE);

@@ -16,7 +16,15 @@ npm run check:android
 npm run check:public
 ```
 
-The Android browser preview uses separate preferences and cannot launch TV apps. Its Samsung-only Art Mode control is omitted. Settings → Android TV contains TV Home, TV settings and Home button. TV Home opens the original TCL interface and keeps it there, even across Home presses, until CleanFrame is opened again. Home button opens Accessibility settings, where **CleanFrame Home button** turns the Home return on or off. The Tizen preview/packager is retained for upstream compatibility; never use the Tizen device scripts for an Android TV.
+The Android browser preview uses separate preferences and cannot launch TV apps. Its Samsung-only Art Mode control is omitted. Settings → Android TV contains TV Home, TV settings, Home health, Startup, and Backup and restore. TV Home opens the original TCL interface and keeps it there, even across Home presses, until CleanFrame is opened again. Home health shows Running, Enabled but not running, Off, or Unavailable, with Check again and Open Accessibility actions. In Accessibility, **CleanFrame Home button** turns the Home return on or off. The Tizen preview/packager is retained for upstream compatibility; never use the Tizen device scripts for an Android TV.
+
+## Backup and recovery (0.4.0)
+
+Under **Settings → Android TV → Backup and restore**, Save a snapshot keeps one copy of the current appearance, wallpaper rotation and app arrangement on this TV. Restore snapshot previews the app count and wallpaper, then requires confirmation. Cancel changes nothing. A restore validates the versioned document and commits preferences once; malformed files or failed storage writes preserve the saved preferences. Installed streaming apps/accounts, Home permissions and native startup behavior are excluded. Missing apps still need installation; unavailable fonts fall back to a bundled default.
+
+Local snapshots survive in-place updates, but **not uninstalling CleanFrame or clearing its data**. Export/import uses Android's document picker without broad storage permissions. File export/import is disabled with an explanation when no real picker exists, including the framework placeholder on the tested TCL. File IO is bounded to 128 KB and runs off the UI thread. External file round trips have not been physically tested on a picker-equipped TV; do not treat local snapshots as reinstall recovery on this TCL.
+
+Home health reports service connectivity, not proof of a Home-button press or a diagnosis of TCL's app-op policy. If enabled but not running, it explains the off/on recovery and opens Accessibility without altering permissions itself. Startup choices are now nested under Startup; Follow TV remains the default.
 
 ## Build
 

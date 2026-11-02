@@ -42,6 +42,8 @@ public final class MainActivity extends Activity {
     private static final String START = "https://" + HOST + "/assets/ui/index.html";
     private WebView web;
     private boolean resumed;
+    private BackupController backups;
+    private AlertDialog healthDialog;
     private final Handler main = new Handler(Looper.getMainLooper());
     private static boolean homePromptDeclined; // For this process only; a reboot asks again.
     private AlertDialog homePrompt;
@@ -136,9 +138,36 @@ public final class MainActivity extends Activity {
         try { startActivity(home.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); }
         catch (RuntimeException e) { HomeService.clearStock(this); throw e; }
     }
+    private void showHealth() {
+        String state = HomeService.health(this);
+        String detail = "running".equals(state) ? "Running. Press Home from another app to test the button."
+            : "paused".equals(state) ? "Enabled, but not running. The TV may have paused it after a restart or update. Open Accessibility, turn CleanFrame Home button off, then on again."
+            : "off".equals(state) ? "Off. Open Accessibility and enable CleanFrame Home button if you want Home to return here."
+            : "Status unavailable. Open Accessibility to check CleanFrame Home button.";
+        String version = "";
+        try { version = getPackageManager().getPackageInfo(getPackageName(), 0).versionName; } catch (Exception ignored) { }
+        if (healthDialog != null) healthDialog.dismiss();
+        healthDialog = new AlertDialog.Builder(this).setTitle("Home health")
+            .setMessage(detail + "\n\nStartup: " + (HomeService.bootLaunchEnabled(this) ? "Open CleanFrame" : "Follow TV") + "\nCleanFrame " + version)
+            .setPositiveButton("Open Accessibility", new DialogInterface.OnClickListener() { @Override public void onClick(DialogInterface d, int which) {
+                try { startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)); HomeService.launchSucceeded(MainActivity.this); }
+                catch (RuntimeException e) { new AlertDialog.Builder(MainActivity.this).setMessage("Accessibility could not be opened. Use TV settings instead.").setPositiveButton("OK", null).show(); }
+            } })
+            .setNeutralButton("Check again", new DialogInterface.OnClickListener() { @Override public void onClick(DialogInterface d, int which) { showHealth(); } })
+            .setNegativeButton("Close", null).show();
+    }
+    @Override protected void onSaveInstanceState(Bundle state) {
+        if (backups != null) backups.saveState(state);
+        super.onSaveInstanceState(state);
+    }
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (backups != null && backups.result(requestCode, resultCode, data)) return;
+        super.onActivityResult(requestCode, resultCode, data);
+    }
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         web = new WebView(this);
+        backups = new BackupController(this, web, state);
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -180,6 +209,8 @@ public final class MainActivity extends Activity {
         super.onPause();
     }
     @Override protected void onDestroy() {
+        if (backups != null) backups.destroy();
+        if (healthDialog != null) healthDialog.dismiss();
         if (homePrompt != null) homePrompt.dismiss();
         if (web != null) { web.removeJavascriptInterface("CleanFrameAndroid"); web.destroy(); web = null; }
         super.onDestroy();
@@ -221,6 +252,9 @@ public final class MainActivity extends Activity {
                     else if ("home".equals(method)) { originalHome(); HomeService.launchSucceeded(MainActivity.this); }
                     // This firmware ignores the HOME role for the remote button, so the toggle is the Home accessibility service.
                     else if ("defaultHome".equals(method)) { startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)); HomeService.launchSucceeded(MainActivity.this); }
+                    else if ("health".equals(method)) { showHealth(); }
+                    else if ("backupStatus".equals(method)) { response.put("filePicker", backups.hasFilePicker()); }
+                    else if (method != null && method.startsWith("backup.")) { backups.request(method.substring(7), target); }
                     else if ("bootLaunch".equals(method)) {
                         if ("on".equals(target) || "off".equals(target)) {
                             if (!HomeService.setBootLaunch(MainActivity.this, "on".equals(target))) throw new IllegalArgumentException("The startup preference could not be saved.");
