@@ -112,3 +112,7 @@ Code and asset licences remain those of upstream; see LICENSE and THIRD_PARTY_NO
 ## Regression tests
 
 `npm run check:native` compiles production HomeLaunchPolicy on JDK 17 and checks rapid pauses, stale callbacks, UI readiness, failure budgets and startup opt-in. `npm run check:remote` tests delayed/unstable foreground updates without network or credentials. `npm run check:android` checks startup preference persistence and failed saves through the real UI with a mocked native boundary. CI runs all three. These are not a substitute for physical remote, reboot and HDMI acceptance.
+
+## Vacuum experiment (separate branch)
+
+`feat/vacuum-status` adds TV-only Eufy C20 status and Start/Pause/Dock controls behind a vacuum button between All apps and Settings. Native HTTPS/TLS replaces the Mac runtime helper. One-time encrypted setup currently uses the Mac; see [setup and acceptance limits](../docs/vacuum-status.md). Physical command execution and session renewal remain pending; keep the robot docked until the owner tests it.

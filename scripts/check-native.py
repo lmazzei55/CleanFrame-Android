@@ -15,7 +15,10 @@ java = str(Path(java_home) / 'bin/java') if java_home else shutil.which('java')
 if not javac or not java:
     raise SystemExit('JDK 17 is required; set JAVA_HOME.')
 with tempfile.TemporaryDirectory(prefix='cleanframe-native-') as temp:
-    subprocess.run([javac, '-d', temp,
-        str(root / 'android/src/com/mazzei/cleanframe/HomeLaunchPolicy.java'),
-        str(root / 'tests/native/com/mazzei/cleanframe/HomeLaunchPolicyTest.java')], check=True)
-    subprocess.run([java, '-cp', temp, 'com.mazzei.cleanframe.HomeLaunchPolicyTest'], check=True)
+    sources = [root / 'android/src/com/mazzei/cleanframe/HomeLaunchPolicy.java',
+        root / 'android/src/com/mazzei/cleanframe/VacuumFeedPolicy.java',
+        root / 'android/src/com/mazzei/cleanframe/EufyProto.java',
+        *sorted((root / 'tests/native').rglob('*.java'))]
+    subprocess.run([javac, '-d', temp, *map(str, sources)], check=True)
+    for name in ['HomeLaunchPolicyTest', 'VacuumFeedPolicyTest','EufyProtoTest']:
+        subprocess.run([java, '-cp', temp, 'com.mazzei.cleanframe.' + name], check=True)

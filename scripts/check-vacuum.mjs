@@ -1,0 +1,70 @@
+import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
+import { openPreview, root } from './browser.mjs';
+const preview = await openPreview({ publicFonts: true });
+let checks = 0;
+function check(value, label) { assert.ok(value, label); checks++; }
+try {
+  const page = await preview.browser.newPage({ viewport: { width: 1280, height: 720 } });
+  await page.goto(preview.baseURL + '/home/?platform=android');
+  await page.waitForFunction(() => window.ShoreQA?.ready());
+  check(await page.locator('.vacuum-status-content').isHidden(), 'No persistent status on Home');
+  check(JSON.stringify(await page.locator('#utils [data-action]').evaluateAll(nodes => nodes.map(n => n.dataset.action))) === JSON.stringify(['util.apps', 'util.vacuum', 'util.settings']), 'Vacuum button is between All apps and Settings');
+  await page.evaluate(() => ShoreQA.activate('util.vacuum'));
+  check((await page.locator('.vacuum-status-content').innerText()).includes('Not connected'), 'Vacuum button opens dedicated unconfigured screen');
+  check((await page.evaluate(() => ShoreQA.state().focusAction)) === 'vacuum.back', 'Default focus is Back, not Start');
+  check((await page.locator('[data-action="vacuum.start"]').getAttribute('aria-disabled')) === 'true', 'Offline controls are marked unavailable');
+  await page.evaluate(() => FrameVacuumStatus({configured:true,state:'docked',battery:100,receivedAt:Date.now(),controlsReady:true,command:{phase:'sent'}}));
+  check((await page.locator('.vacuum-status-content').innerText()).includes('Waiting for a matching state change'), 'Transport send is not shown as success');
+  check((await page.locator('.vacuum-status-content').innerText()).includes('Docked'), 'Sending does not optimistically change vacuum state');
+
+  check(await page.locator('[data-action="vacuum.resume"]').count() === 1, 'Resume is separate from Start');
+  check(await page.locator('[data-action="vacuum.options"]').count() === 1, 'Cleaning options are reachable');
+  await page.evaluate(() => FrameVacuumStatus({configured:true,state:'paused',battery:90,task:'Room cleaning',settings:{mode:'Vacuum only',suction:'Turbo',water:'Low',passes:'2 passes'},receivedAt:Date.now(),controlsReady:true}));
+  check((await page.locator('.vacuum-status-content').innerText()).includes('Room cleaning'), 'Task type is displayed');
+  check((await page.locator('.vacuum-status-content').innerText()).includes('Suction: Turbo'), 'Confirmed cleaning settings are displayed');
+  await page.evaluate(() => { FrameRemoteKey('left'); FrameRemoteKey('right'); });
+  check((await page.evaluate(() => ShoreQA.state().focusAction)) === 'vacuum.back', 'Remote bounds preserve Back at last action');
+  await page.evaluate(() => FrameVacuumStatus({ configured: true, state: 'cleaning', battery: 0, receivedAt: Date.now() }));
+  check((await page.locator('.vacuum-status-content').innerText()).includes('Cleaning · 0%'), 'Zero battery is retained');
+  await page.evaluate(() => FrameVacuumStatus({ configured: true, state: 'charging', battery: 999, receivedAt: Date.now() }));
+  check(!(await page.locator('.vacuum-status-content').innerText()).includes('%'), 'Invalid battery is unknown, not clamped');
+  await page.evaluate(() => FrameVacuumStatus({ configured: true, state: '<img src=x onerror=alert(1)>', receivedAt: Date.now() }));
+  check((await page.locator('.vacuum-status-content').innerText()).includes('Status unavailable'), 'Unknown status cannot become Charging');
+  check((await page.locator('.vacuum-status-content img').count()) === 0, 'Status never becomes HTML');
+  await page.evaluate(() => FrameVacuumStatus({ configured: true, state: 'cleaning', battery: 72, receivedAt: Date.now() - 100000 }));
+  check((await page.locator('.vacuum-status-content').innerText()).includes('No recent status'), 'Stale reading is unavailable');
+  check(!(await page.locator('.vacuum-status-content').innerText()).includes('72%'), 'Stale battery not presented as current');
+  await page.evaluate(() => FrameVacuumStatus({ configured: true, state: 'cleaning', battery: 72, receivedAt: Date.now() + 60000 }));
+  check((await page.locator('.vacuum-status-content').innerText()).includes('No recent status'), 'Future timestamp is rejected');
+  await page.evaluate(() => FrameVacuumStatus({ configured: true, state: 'cleaning', errorCode: 7, receivedAt: Date.now() }));
+  check((await page.locator('.vacuum-status-content').innerText()).includes('Needs attention'), 'Reported fault overrides activity');
+  await page.evaluate(() => FrameVacuumStatus({ configured: true, state: 'cleaning', errorCode: 6011, receivedAt: Date.now() }));
+  check((await page.locator('.vacuum-status-content').innerText()).includes('clean-water tank empty'), 'Tank-empty code has an actionable explanation');
+  await page.evaluate(() => FrameVisibility(false));
+  check(await page.locator('.vacuum-status-content').isHidden(), 'Native pause hides card and stops refresh');
+  await page.evaluate(() => { FrameVisibility(true); ShoreQA.scene('settings'); });
+  check(await page.locator('.vacuum-status-content').isHidden(), 'Settings hides the status card');
+  await page.goto(preview.baseURL + '/home/?platform=android&vacuumDemo=cleaning');
+  await page.waitForFunction(() => window.ShoreQA?.ready());
+  check((await page.locator('.vacuum-status-content').innerText()).includes('Preview · sample data'), 'Browser demo is clearly labeled');
+  mkdirSync(root + '.local/qa', { recursive: true });
+  await page.screenshot({ path: root + '.local/qa/vacuum-dock-preview.png' });
+  await page.evaluate(() => { FrameRemoteKey('back'); ShoreQA.look({ layout: 'list' }); ShoreQA.activate('util.vacuum'); FrameRemoteKey('back'); });
+  await page.waitForFunction(() => ShoreQA.ready());
+  check(await page.locator('.vacuum-status-content').isHidden(), 'Back closes status and clears Home');
+  check((await page.evaluate(() => ShoreQA.state().focusAction)) === 'util.vacuum', 'Back restores focus to vacuum button');
+  await page.screenshot({ path: root + '.local/qa/vacuum-list-preview.png' });
+  await page.evaluate(() => ShoreQA.activate('util.vacuum'));
+  for (const size of [{width:1280,height:720},{width:1920,height:1080}]) {
+    await page.setViewportSize(size);
+    const bounds = await page.locator('.vacuum-panel').boundingBox();
+    check(bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= size.width && bounds.y + bounds.height <= size.height, 'Card fits TV viewport');
+  }
+  const native = await preview.browser.newPage();
+  await native.addInitScript(() => { window.CleanFrameAndroid = { request() {} }; });
+  await native.goto(preview.baseURL + '/home/?vacuumDemo=cleaning');
+  check(await native.locator('.vacuum-status-content').isHidden(), 'Demo cannot activate on real Android bridge');
+  await native.close(); await page.close();
+  console.log(checks + ' vacuum UI checks passed. No live device contacted.');
+} finally { await preview.close(); }

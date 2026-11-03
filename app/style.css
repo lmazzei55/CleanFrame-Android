@@ -597,3 +597,16 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000}
 .is-font-switch .home .ph-name,.is-font-switch .home .clock,.is-font-switch .home .tile .label,.is-font-switch .home .u-label,.is-font-switch .home .app-focus-name,.is-font-switch .home .util-focus-label{animation:font-in 160ms linear}
 @keyframes font-in{from{opacity:0}}
 @media(prefers-reduced-motion:reduce){.is-font-switch .home .ph-name,.is-font-switch .home .clock,.is-font-switch .home .tile .label,.is-font-switch .home .u-label,.is-font-switch .home .app-focus-name,.is-font-switch .home .util-focus-label{animation-duration:120ms}}
+
+/* On-demand vacuum status. No persistent Home card. */
+.vacuum-panel{position:absolute;left:140px;top:320px;width:1400px}
+.vacuum-status-content[hidden]{display:none}
+.vacuum-status{font-size:72px;line-height:94px;letter-spacing:-1.5px}
+.vacuum-note{font-size:30px;line-height:44px;margin-top:28px;color:var(--mute);max-width:1250px}
+.vacuum-actions{position:absolute;left:140px;top:820px}
+
+.vacuum-command-note{font-size:26px;line-height:38px;margin-top:24px;color:var(--mute)}
+.vacuum-actions{display:flex;gap:20px}
+.vacuum-actions [aria-disabled="true"]{opacity:.5}
+
+.vacuum-options-note,.vacuum-task-note{font-size:28px;line-height:40px;color:var(--mute);margin-top:12px;max-width:1500px}
