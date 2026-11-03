@@ -18,6 +18,13 @@ try {
   check((await page.locator('.vacuum-status-content').innerText()).includes('Waiting for a matching state change'), 'Transport send is not shown as success');
   check((await page.locator('.vacuum-status-content').innerText()).includes('Docked'), 'Sending does not optimistically change vacuum state');
 
+  check(await page.locator('[data-action="vacuum.resume"]').count() === 1, 'Resume is separate from Start');
+  check(await page.locator('[data-action="vacuum.options"]').count() === 1, 'Cleaning options are reachable');
+  await page.evaluate(() => FrameVacuumStatus({configured:true,state:'paused',battery:90,task:'Room cleaning',settings:{mode:'Vacuum only',suction:'Turbo',water:'Low',passes:'2 passes'},receivedAt:Date.now(),controlsReady:true}));
+  check((await page.locator('.vacuum-status-content').innerText()).includes('Room cleaning'), 'Task type is displayed');
+  check((await page.locator('.vacuum-status-content').innerText()).includes('Suction: Turbo'), 'Confirmed cleaning settings are displayed');
+  await page.evaluate(() => { FrameRemoteKey('left'); FrameRemoteKey('right'); });
+  check((await page.evaluate(() => ShoreQA.state().focusAction)) === 'vacuum.back', 'Remote bounds preserve Back at last action');
   await page.evaluate(() => FrameVacuumStatus({ configured: true, state: 'cleaning', battery: 0, receivedAt: Date.now() }));
   check((await page.locator('.vacuum-status-content').innerText()).includes('Cleaning · 0%'), 'Zero battery is retained');
   await page.evaluate(() => FrameVacuumStatus({ configured: true, state: 'charging', battery: 999, receivedAt: Date.now() }));

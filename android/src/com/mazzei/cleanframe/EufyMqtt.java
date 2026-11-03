@@ -42,9 +42,11 @@ final class EufyMqtt {
     static byte[] body(InputStream in)throws Exception{int n=0,m=1;for(int i=0;i<4;i++){int b=in.read();if(b<0)throw new IOException();n+=(b&127)*m;if((b&128)==0){if(n>262144)throw new IOException();byte[] data=new byte[n];new DataInputStream(in).readFully(data);return data;}m*=128;}throw new IOException();}
     static byte[] read(InputStream in,int expected)throws Exception{if(in.read()!=expected)throw new IOException();return body(in);}
     synchronized void ping(){try{if(connected)packet(192,new byte[0]);}catch(Exception e){close();}}
-    synchronized void send(String action)throws Exception{
+    synchronized void send(String action,int passes)throws Exception{
+        sendData(new JSONObject().put("152",Base64.encodeToString(EufyProto.command(action,passes),2)));
+    }
+    synchronized void sendData(JSONObject data)throws Exception{
         if(!connected)throw new IOException("Vacuum connection is offline.");long now=System.currentTimeMillis();
-        JSONObject data=new JSONObject().put("152",Base64.encodeToString(EufyProto.command(action),2));
         JSONObject head=new JSONObject().put("client_id",sessionId).put("cmd",65537).put("cmd_status",EufyProto.REQUEST_STATUS).put("msg_seq",++sequence).put("seed","").put("sess_id",sessionId).put("sign_code",0).put("timestamp",now).put("version","1.0.0.1");
         JSONObject payload=new JSONObject().put("account_id",credentials.getString("user_id")).put("data",data).put("device_sn",device).put("protocol",2).put("t",now);
         byte[] value=new JSONObject().put("head",head).put("payload",payload.toString()).toString().getBytes("UTF-8");ByteArrayOutputStream out=new ByteArrayOutputStream();out.write(bytes(topic+"/req"));out.write(value);packet(48,out.toByteArray());

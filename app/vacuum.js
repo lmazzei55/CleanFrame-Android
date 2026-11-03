@@ -1,4 +1,4 @@
-/* Passive experiment card. No account credentials, network requests or vacuum commands. */
+/* Native vacuum status; account material never enters this view. */
 (function () {
   'use strict';
   if (!window.FrameProfile || !window.FrameProfile.backup) return;
@@ -19,10 +19,12 @@
     while (card.firstChild) card.removeChild(card.firstChild);
 
     card.appendChild(line('vacuum-status', text));
+    if(fresh&&data.task&&data.task!==labels[state]&&/cleaning|paused|mapping|returning|idle/.test(state))card.appendChild(line('vacuum-task-note',data.task));
     var note = !data ? 'Connect your Eufy account on this TV to see your vacuum here.' : demo ? 'Preview · sample data' : !fresh ? 'No recent status received' : 'Cloud snapshot · checked just now';
     if (!demo && fresh && age >= 15000) note = 'Cloud snapshot · checked ' + Math.floor(age / 1000) + 's ago';
     if (!demo && fresh && data.errorCode !== null) note = data.errorCode === 6011 ? 'Dock clean-water tank empty. Refill it before cleaning. Pause and Return to dock remain available.' : 'Reported error ' + data.errorCode;
     card.appendChild(line('vacuum-note', note));
+    if(fresh&&data.settings){var details=[];['mode','suction','water','passes'].forEach(function(key){if(typeof data.settings[key]==='string')details.push((key==='suction'?'Suction: ':key==='water'?'Water: ':'')+data.settings[key]);});if(details.length)card.appendChild(line('vacuum-options-note',details.join(' · ')));}
     var messages={queued:'Connecting…',claimed:'Sending command…',sending:'Sending command…',connection_failed:'Connection failed. Close this screen and reopen to retry.',sent:'Sent. Waiting for a matching state change…',confirmed:'State change confirmed.',failed:'Command failed. Nothing was confirmed.',unconfirmed:'Could not confirm a state change. Check the Eufy app before trying again.'};
     card.appendChild(line('vacuum-command-note',command&&messages[command.phase] ? messages[command.phase] : controlsReady ? 'Controls connected.' : 'Controls unavailable: TV connection offline.'));
     var buttons=document.querySelectorAll('[data-action^="vacuum."]');
@@ -36,6 +38,8 @@
     var battery = typeof value.battery === 'number' && isFinite(value.battery) && value.battery >= 0 && value.battery <= 100 ? Math.round(value.battery) : null;
     var code = typeof value.errorCode === 'number' && isFinite(value.errorCode) && value.errorCode > 0 && value.errorCode % 1 === 0 && value.errorCode <= 2147483647 ? value.errorCode : null;
     data = { state: Object.prototype.hasOwnProperty.call(labels, value.state) ? value.state : 'unknown', battery: battery, errorCode: code,
+      task: typeof value.task === 'string' && value.task.length <= 60 ? value.task : '',
+      settings: value.settings && typeof value.settings === 'object' ? value.settings : null,
       receivedAt: typeof value.receivedAt === 'number' && isFinite(value.receivedAt) ? value.receivedAt : 0 };
     if (code !== null) data.state = 'error';
     render();

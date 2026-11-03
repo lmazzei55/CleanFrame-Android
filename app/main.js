@@ -538,7 +538,7 @@
   function utilAction(u) {
     if (u === 'art') perform('Art Mode', FrameDevice.art);
     else if (u === 'apps') openApps();
-    else if (u === 'vacuum') push({ id: 'vacuum', f: { b: 3 } });
+    else if (u === 'vacuum') push({ id: 'vacuum', f: { b: 5 } });
     else openSettings();
   }
   function addAppsRoute() { openEditor('home'); }
@@ -1024,8 +1024,8 @@
   };
   function messageContent(t) { return t.content || MSG[t.msg]; }
   function vacuumAction(t) {
-    if(t.f.b===3){pop();return;}
-    perform('Vacuum cleaner',function(done){FrameDevice.vacuumCommand(['start','pause','dock'][t.f.b],function(err){
+    if(t.f.b===5){pop();return;}
+    perform('Vacuum cleaner',function(done){FrameDevice.vacuumCommand(['start','resume','pause','dock','options'][t.f.b],function(err){
       if(window.FrameVacuumRefresh) window.FrameVacuumRefresh();done(err);
     });});
   }
@@ -1034,7 +1034,7 @@
     key: function (t, k) {
       if(k==='back')pop();
       else if(k==='left'||k==='up')t.f.b=Math.max(0,t.f.b-1);
-      else if(k==='right'||k==='down')t.f.b=Math.min(3,t.f.b+1);
+      else if(k==='right'||k==='down')t.f.b=Math.min(5,t.f.b+1);
       else if(k==='ok')vacuumAction(t);
     },
     point: function (t,z,i) { if(z==='head'){t.f.b=i;vacuumAction(t);} }
@@ -1614,7 +1614,7 @@
     return '<span class="panel-content">' + appMark(a, 120, 72, 58) + '<span class="label">' + esc(a.name) + '</span></span><span class="state">' + state + '</span>';
   }
   var FILLS = {
-    vacuum: function (t, el) { setHTML(el.back, headButtons([['start','Start cleaning','',''],['pause','Pause','',''],['dock','Return to dock','',''],['back','Back','','left']],t.f.b,'vacuum')); },
+    vacuum: function (t, el) { setHTML(el.back, headButtons([['start','Start cleaning','',''],['resume','Resume','',''],['pause','Pause','',''],['dock','Return to dock','',''],['options','Options','',''],['back','Back','','left']],t.f.b,'vacuum')); },
     apps: function (t, el) {
       var f = t.f, items = appsItems(), n = items.length, rows = Math.ceil(n / COLS), vis = 3, row = Math.floor(f.i / COLS);
       setHTML(el.title, 'All apps');
@@ -1864,7 +1864,7 @@
   function goScene(name) {
     if (top().id === 'wallpaper') cancelWallpaperTimer(top());
     S.stack = [S.stack[0]]; S.stack[0].f.zone = 'apps'; clearSession(); restoreLook();
-    if (name === 'vacuum') push({ id: 'vacuum', f: { b: 3 } });
+    if (name === 'vacuum') push({ id: 'vacuum', f: { b: 5 } });
     else if (name === 'apps') openApps();
     else if (name === 'settings') openSettings();
     else if (name === 'appearance') { openSettings(); top().f.id = 'background'; S.settingsFocus = 'background'; openAppearance('background'); }
@@ -1983,7 +1983,7 @@
   QA.activate = function (action) { return activate(action) ? QA.state() : null; };
   QA.actions = function () { var view = isSettingsDetail(top()) ? appearanceEl : sheetEl.hidden ? homeEl : sheetEl; return Array.prototype.filter.call(view.querySelectorAll('[data-action]'), renderedAction).map(function (el) { return el.getAttribute('data-action'); }); };
 
-  window.FrameOpenVacuum = function () { if (utils().indexOf('vacuum') >= 0) { push({ id: 'vacuum', f: { b: 3 } }); after(); } };
+  window.FrameOpenVacuum = function () { if (utils().indexOf('vacuum') >= 0) { push({ id: 'vacuum', f: { b: 5 } }); after(); } };
 
   /* ---------- Start ---------- */
   cueL.innerHTML = icon('left'); cueR.innerHTML = icon('right');
