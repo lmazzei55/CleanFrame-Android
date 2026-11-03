@@ -15,6 +15,23 @@ final class EufyProto {
         }return result;
     }
     static long varint(InputStream in)throws Exception{long n=0;for(int s=0;s<64;s+=7){int b=in.read();if(b<0)throw new IOException();n|=(long)(b&127)<<s;if((b&128)==0)return n;}throw new IOException();}
+    // Proto3 omits enum zero (standby), including after a pause.
+    static String workState(Map<Integer,Object> work)throws Exception{
+        Object code=work.get(2);long n=code==null?0:code instanceof Long?(Long)code:-1;
+        String[] names={"idle","idle","error","charging","unknown","cleaning","unknown","returning"};
+        String state=n>=0&&n<names.length?names[(int)n]:"unknown";
+        int field="cleaning".equals(state)?6:"returning".equals(state)?8:0;
+        if(field>0&&work.get(field) instanceof byte[]&&Long.valueOf(1).equals(read((byte[])work.get(field),false).get(1)))state="paused";
+        if("charging".equals(state)&&work.get(3) instanceof byte[]&&Long.valueOf(1).equals(read((byte[])work.get(3),false).get(1)))state="docked";
+        return state;
+    }
+    static boolean controlAllowed(String command,String state,int error,boolean tankOnly){
+        // Pause is a stop request. Tank-empty is a dock issue, not a navigation fault.
+        if("pause".equals(command)&&error>0)return true;
+        if("unknown".equals(state))return false;
+        if("error".equals(state))return "dock".equals(command)&&error==6011&&tankOnly;
+        return error==0||("dock".equals(command)&&tankOnly);
+    }
     static byte[] command(String action){
         if("start".equals(action))return new byte[]{6,8,0,26,2,8,1};
         if("pause".equals(action))return new byte[]{2,8,13};

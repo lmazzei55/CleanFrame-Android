@@ -32,6 +32,8 @@ try {
   check((await page.locator('.vacuum-status-content').innerText()).includes('No recent status'), 'Future timestamp is rejected');
   await page.evaluate(() => FrameVacuumStatus({ configured: true, state: 'cleaning', errorCode: 7, receivedAt: Date.now() }));
   check((await page.locator('.vacuum-status-content').innerText()).includes('Needs attention'), 'Reported fault overrides activity');
+  await page.evaluate(() => FrameVacuumStatus({ configured: true, state: 'cleaning', errorCode: 6011, receivedAt: Date.now() }));
+  check((await page.locator('.vacuum-status-content').innerText()).includes('clean-water tank empty'), 'Tank-empty code has an actionable explanation');
   await page.evaluate(() => FrameVisibility(false));
   check(await page.locator('.vacuum-status-content').isHidden(), 'Native pause hides card and stops refresh');
   await page.evaluate(() => { FrameVisibility(true); ShoreQA.scene('settings'); });

@@ -16,11 +16,11 @@ final class EufyNative {
     private final Activity activity;private final ScheduledExecutorService io=Executors.newScheduledThreadPool(3);
     private volatile int generation;private volatile boolean visible,ready;private volatile EufyMqtt mqtt;
     private JSONObject config,session,user,mqttCredentials,dps=new JSONObject();private String device,state="unknown",phase="",action="",before="";
-    private int battery=-1,error;private long observed,commandAt;private ScheduledFuture<?> tick;
+    private int battery=-1,error;private boolean tankOnly;private long observed,commandAt;private ScheduledFuture<?> tick;
     EufyNative(Activity activity){this.activity=activity;}
     synchronized JSONObject status()throws Exception{
         boolean fresh=System.currentTimeMillis()-observed<=90000;
-        return new JSONObject().put("configured",config!=null).put("state",fresh?state:"unknown").put("battery",fresh&&battery>=0?battery:JSONObject.NULL)
+        return new JSONObject().put("configured",config!=null).put("state",fresh?(error>0?"error":state):"unknown").put("battery",fresh&&battery>=0?battery:JSONObject.NULL)
             .put("receivedAt",fresh?observed:0).put("errorCode",error>0?error:JSONObject.NULL).put("controlsReady",ready&&visible)
             .put("command",new JSONObject().put("phase",phase));
     }
@@ -48,14 +48,12 @@ final class EufyNative {
     synchronized void decode(JSONObject value){try{
         Iterator<String> keys=value.keys();while(keys.hasNext()){String key=keys.next();dps.put(key,value.get(key));}
         boolean valid=false;
-        if(value.has("153"))try{Map<Integer,Object> work=EufyProto.read(Base64.decode(value.getString("153"),0),true);Object code=work.get(2);
-            state="unknown";if(code instanceof Long){int n=((Long)code).intValue();String[] names={"idle","idle","error","charging","unknown","cleaning","unknown","returning"};if(n>=0&&n<names.length)state=names[n];}
-            if("charging".equals(state)&&work.get(3) instanceof byte[]&&Long.valueOf(1).equals(EufyProto.read((byte[])work.get(3),false).get(1)))state="docked";
+        if(value.has("153"))try{Map<Integer,Object> work=EufyProto.read(Base64.decode(value.getString("153"),0),true);
+            state=EufyProto.workState(work);
             valid=!"unknown".equals(state);
         }catch(Exception ignored){state="unknown";}
         if(value.has("163"))try{Object raw=value.get("163");Object level=raw instanceof Number?raw:EufyProto.read(Base64.decode((String)raw,0),true).get(1);int n=level instanceof Number?((Number)level).intValue():-1;battery=n>=0&&n<=100?n:-1;valid|=battery>=0;}catch(Exception ignored){battery=-1;}
-        if(value.has("177"))try{error=0;Map<Integer,Object> errors=EufyProto.read(Base64.decode(value.getString("177"),0),true);for(int field:new int[]{2,3}){Object code=errors.get(field);if(code instanceof byte[]){ByteArrayInputStream packed=new ByteArrayInputStream((byte[])code);while(packed.available()>0){long n=EufyProto.varint(packed);if(n>0&&n<=Integer.MAX_VALUE){error=(int)n;break;}}}else if(code instanceof Long&&((Long)code)>0&&((Long)code)<=Integer.MAX_VALUE)error=((Long)code).intValue();if(error>0)break;}}catch(Exception ignored){}
-        if(error>0)state="error";
+        if(value.has("177"))try{error=0;tankOnly=true;Map<Integer,Object> errors=EufyProto.read(Base64.decode(value.getString("177"),0),true);for(int field:new int[]{2,3}){Object code=errors.get(field);if(code instanceof byte[]){ByteArrayInputStream packed=new ByteArrayInputStream((byte[])code);while(packed.available()>0){long n=EufyProto.varint(packed);if(n>0&&n<=Integer.MAX_VALUE){if(error==0)error=(int)n;if(n!=6011)tankOnly=false;}}}else if(code instanceof Long&&((Long)code)>0&&((Long)code)<=Integer.MAX_VALUE){int n=((Long)code).intValue();if(error==0)error=n;if(n!=6011)tankOnly=false;}}}catch(Exception ignored){}
         if(valid)observed=System.currentTimeMillis();
         if(value.has("153")&&"sent".equals(phase)&&!state.equals(before)&&(("start".equals(action)&&"cleaning".equals(state))||("pause".equals(action)&&state.matches("idle|paused"))||("dock".equals(action)&&state.matches("returning|charging|docked"))))phase="confirmed";
     }catch(Exception ignored){}}
@@ -64,8 +62,8 @@ final class EufyNative {
         if(!command.matches("start|pause|dock"))throw new IllegalArgumentException("Unsupported vacuum command.");
         if(!ready||!visible||mqtt==null||System.currentTimeMillis()-observed>90000)throw new IllegalArgumentException("Wait for the vacuum connection and a recent status.");
         if(phase.matches("sent|sending"))throw new IllegalArgumentException("A command is already waiting for confirmation.");
-        if(state.matches("unknown|error"))throw new IllegalArgumentException("Check the vacuum in the Eufy app first.");
-        if("pause".equals(command)&&!state.matches("cleaning|returning"))throw new IllegalArgumentException("The vacuum is not cleaning or returning.");
+        if(!EufyProto.controlAllowed(command,state,error,tankOnly))throw new IllegalArgumentException(error==6011?"Refill the dock’s clean-water tank before starting cleaning.":"Check the vacuum in the Eufy app first.");
+        if("pause".equals(command)&&error==0&&!state.matches("cleaning|returning"))throw new IllegalArgumentException("The vacuum is not cleaning or returning.");
         if("dock".equals(command)&&state.matches("docked|charging"))throw new IllegalArgumentException("The vacuum is already at its dock.");
         if("start".equals(command)&&state.equals("cleaning"))throw new IllegalArgumentException("The vacuum is already cleaning.");
         action=command;before=state;phase="sending";commandAt=System.currentTimeMillis();final EufyMqtt connection=mqtt;

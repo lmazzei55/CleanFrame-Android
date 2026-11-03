@@ -21,7 +21,7 @@
     card.appendChild(line('vacuum-status', text));
     var note = !data ? 'Connect your Eufy account on this TV to see your vacuum here.' : demo ? 'Preview · sample data' : !fresh ? 'No recent status received' : 'Cloud snapshot · checked just now';
     if (!demo && fresh && age >= 15000) note = 'Cloud snapshot · checked ' + Math.floor(age / 1000) + 's ago';
-    if (!demo && fresh && data.errorCode !== null) note = 'Reported error ' + data.errorCode;
+    if (!demo && fresh && data.errorCode !== null) note = data.errorCode === 6011 ? 'Dock clean-water tank empty. Refill it before cleaning. Pause and Return to dock remain available.' : 'Reported error ' + data.errorCode;
     card.appendChild(line('vacuum-note', note));
     var messages={queued:'Connecting…',claimed:'Sending command…',sending:'Sending command…',connection_failed:'Connection failed. Close this screen and reopen to retry.',sent:'Sent. Waiting for a matching state change…',confirmed:'State change confirmed.',failed:'Command failed. Nothing was confirmed.',unconfirmed:'Could not confirm a state change. Check the Eufy app before trying again.'};
     card.appendChild(line('vacuum-command-note',command&&messages[command.phase] ? messages[command.phase] : controlsReady ? 'Controls connected.' : 'Controls unavailable: TV connection offline.'));
