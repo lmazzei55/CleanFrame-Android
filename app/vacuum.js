@@ -6,7 +6,7 @@
   var pollTimer = 0, polling = false, command = null, controlsReady = false;
   var card = document.createElement('aside'), data = null, timer = 0, visible = true, onHome = false;
   var demo = !window.CleanFrameAndroid && /(?:\?|&)vacuumDemo=cleaning(?:&|$)/.test(window.location.search);
-  var labels = { cleaning: 'Cleaning', docked: 'Docked', charging: 'Charging', returning: 'Returning to dock', paused: 'Paused', idle: 'Idle', error: 'Needs attention', unknown: 'Status unavailable' };
+  var labels = { cleaning: 'Cleaning', mapping: 'Mapping', remote: 'Remote control', cruising: 'Cruising', docked: 'Docked', charging: 'Charging', returning: 'Returning to dock', paused: 'Paused', idle: 'Idle', error: 'Needs attention', unknown: 'Status unavailable' };
   card.className = 'vacuum-status-content'; card.hidden = true; card.setAttribute('aria-label', 'Vacuum status');
   function line(className, text) { var el = document.createElement('div'); el.className = className; el.textContent = text; return el; }
   function render() {

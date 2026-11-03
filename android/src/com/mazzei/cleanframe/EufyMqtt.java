@@ -10,7 +10,7 @@ import android.util.Base64;
 /** Minimal MQTT 3.1.1 over certificate-verified TLS; QoS0 commands, no offline queue/replay. */
 final class EufyMqtt {
     interface Listener { void data(JSONObject value);void ready(boolean value); }
-    private SSLSocket socket;private OutputStream output;private volatile boolean connected;private String id,topic;private JSONObject credentials;private String device;
+    private SSLSocket socket;private OutputStream output;private volatile boolean connected;private String id,sessionId,topic;private int sequence;private JSONObject credentials;private String device;
     static byte[] der(int type,byte[] value)throws Exception{ByteArrayOutputStream out=new ByteArrayOutputStream();out.write(type);int n=value.length;if(n<128)out.write(n);else{int count=n>65535?3:n>255?2:1;out.write(128|count);for(int i=count-1;i>=0;i--)out.write(n>>>(8*i));}out.write(value);return out.toByteArray();}
     static byte[] pkcs8(byte[] value)throws Exception{ByteArrayOutputStream out=new ByteArrayOutputStream();out.write(new byte[]{2,1,0,48,13,6,9,42,(byte)134,72,(byte)134,(byte)247,13,1,1,1,5,0});out.write(der(4,value));return der(48,out.toByteArray());}
     static byte[] bytes(String value)throws Exception{byte[] b=value.getBytes("UTF-8");ByteArrayOutputStream out=new ByteArrayOutputStream();out.write(b.length>>>8);out.write(b.length);out.write(b);return out.toByteArray();}
@@ -29,7 +29,7 @@ final class EufyMqtt {
         SSLContext ssl=SSLContext.getInstance("TLS");ssl.init(km.getKeyManagers(),tm.getTrustManagers(),null);
         socket=(SSLSocket)ssl.getSocketFactory().createSocket();socket.connect(new java.net.InetSocketAddress(host,8883),10000);
         SSLParameters parameters=socket.getSSLParameters();parameters.setEndpointIdentificationAlgorithm("HTTPS");socket.setSSLParameters(parameters);socket.setSoTimeout(12000);socket.startHandshake();output=socket.getOutputStream();
-        id="android-"+c.getString("app_name")+"-eufy_android_"+clientId+"_"+c.getString("user_id")+"-"+System.currentTimeMillis();topic="cmd/eufy_home/T2280/"+deviceId;
+        sessionId="android-"+c.getString("app_name")+"-eufy_android_"+clientId+"_"+c.getString("user_id");id=sessionId+"-"+System.currentTimeMillis();topic="cmd/eufy_home/T2280/"+deviceId;
         ByteArrayOutputStream connect=new ByteArrayOutputStream();connect.write(bytes("MQTT"));connect.write(new byte[]{4,(byte)130,0,30});connect.write(bytes(id));connect.write(bytes(c.getString("thing_name")));packet(16,connect.toByteArray());
         InputStream in=socket.getInputStream();byte[] ack=read(in,32);if(ack.length!=2||ack[1]!=0)throw new IOException();
         ByteArrayOutputStream sub=new ByteArrayOutputStream();sub.write(new byte[]{0,1});sub.write(bytes(topic+"/res"));sub.write(0);sub.write(bytes("smart/mb/in/"+device));sub.write(0);packet(130,sub.toByteArray());
@@ -45,7 +45,7 @@ final class EufyMqtt {
     synchronized void send(String action)throws Exception{
         if(!connected)throw new IOException("Vacuum connection is offline.");long now=System.currentTimeMillis();
         JSONObject data=new JSONObject().put("152",Base64.encodeToString(EufyProto.command(action),2));
-        JSONObject head=new JSONObject().put("client_id",id).put("cmd",65537).put("cmd_status",2).put("msg_seq",1).put("seed","").put("sess_id",id).put("sign_code",0).put("timestamp",now).put("version","1.0.0.1");
+        JSONObject head=new JSONObject().put("client_id",sessionId).put("cmd",65537).put("cmd_status",EufyProto.REQUEST_STATUS).put("msg_seq",++sequence).put("seed","").put("sess_id",sessionId).put("sign_code",0).put("timestamp",now).put("version","1.0.0.1");
         JSONObject payload=new JSONObject().put("account_id",credentials.getString("user_id")).put("data",data).put("device_sn",device).put("protocol",2).put("t",now);
         byte[] value=new JSONObject().put("head",head).put("payload",payload.toString()).toString().getBytes("UTF-8");ByteArrayOutputStream out=new ByteArrayOutputStream();out.write(bytes(topic+"/req"));out.write(value);packet(48,out.toByteArray());
     }

@@ -3,6 +3,7 @@ import java.util.*;
 import java.io.*;
 /** Bounded protobuf wire reader for C20 status; unknown fields are skipped. */
 final class EufyProto {
+    static final int REQUEST_STATUS=1;
     static Map<Integer,Object> read(byte[] data,boolean delimited) throws Exception {
         if(data.length>262144)throw new IOException();
         ByteArrayInputStream in=new ByteArrayInputStream(data);
@@ -18,9 +19,9 @@ final class EufyProto {
     // Proto3 omits enum zero (standby), including after a pause.
     static String workState(Map<Integer,Object> work)throws Exception{
         Object code=work.get(2);long n=code==null?0:code instanceof Long?(Long)code:-1;
-        String[] names={"idle","idle","error","charging","unknown","cleaning","unknown","returning"};
+        String[] names={"idle","idle","error","charging","mapping","cleaning","remote","returning","cruising"};
         String state=n>=0&&n<names.length?names[(int)n]:"unknown";
-        int field="cleaning".equals(state)?6:"returning".equals(state)?8:0;
+        int field="mapping".equals(state)?5:"cleaning".equals(state)?6:"returning".equals(state)?8:"cruising".equals(state)?9:0;
         if(field>0&&work.get(field) instanceof byte[]&&Long.valueOf(1).equals(read((byte[])work.get(field),false).get(1)))state="paused";
         if("charging".equals(state)&&work.get(3) instanceof byte[]&&Long.valueOf(1).equals(read((byte[])work.get(3),false).get(1)))state="docked";
         return state;

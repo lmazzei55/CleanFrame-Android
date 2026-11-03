@@ -20,7 +20,9 @@ public final class EufyProtoTest {
         check(EufyProto.controlAllowed("dock","error",6011,true));
         check(!EufyProto.controlAllowed("dock","error",7,false));
         check(!EufyProto.controlAllowed("dock","unknown",6011,true));
-        System.out.println("21 native Eufy protocol and control checks passed.");
+        check("mapping".equals(EufyProto.workState(EufyProto.read(new byte[]{2,16,4},true))));
+        check("paused".equals(EufyProto.workState(EufyProto.read(new byte[]{6,16,4,42,2,8,1},true))));
+        System.out.println("23 native Eufy protocol and control checks passed.");
     }
     static void check(boolean value){if(!value)throw new AssertionError();}
 }

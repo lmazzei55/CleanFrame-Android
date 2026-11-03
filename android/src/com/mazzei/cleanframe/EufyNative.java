@@ -55,7 +55,7 @@ final class EufyNative {
         if(value.has("163"))try{Object raw=value.get("163");Object level=raw instanceof Number?raw:EufyProto.read(Base64.decode((String)raw,0),true).get(1);int n=level instanceof Number?((Number)level).intValue():-1;battery=n>=0&&n<=100?n:-1;valid|=battery>=0;}catch(Exception ignored){battery=-1;}
         if(value.has("177"))try{error=0;tankOnly=true;Map<Integer,Object> errors=EufyProto.read(Base64.decode(value.getString("177"),0),true);for(int field:new int[]{2,3}){Object code=errors.get(field);if(code instanceof byte[]){ByteArrayInputStream packed=new ByteArrayInputStream((byte[])code);while(packed.available()>0){long n=EufyProto.varint(packed);if(n>0&&n<=Integer.MAX_VALUE){if(error==0)error=(int)n;if(n!=6011)tankOnly=false;}}}else if(code instanceof Long&&((Long)code)>0&&((Long)code)<=Integer.MAX_VALUE){int n=((Long)code).intValue();if(error==0)error=n;if(n!=6011)tankOnly=false;}}}catch(Exception ignored){}
         if(valid)observed=System.currentTimeMillis();
-        if(value.has("153")&&"sent".equals(phase)&&!state.equals(before)&&(("start".equals(action)&&"cleaning".equals(state))||("pause".equals(action)&&state.matches("idle|paused"))||("dock".equals(action)&&state.matches("returning|charging|docked"))))phase="confirmed";
+        if(value.has("153")&&phase.matches("sent|sending")&&!state.equals(before)&&(("start".equals(action)&&"cleaning".equals(state))||("pause".equals(action)&&state.matches("idle|paused"))||("dock".equals(action)&&state.matches("returning|charging|docked"))))phase="confirmed";
     }catch(Exception ignored){}}
     private void refresh(){try{JSONObject response=http("https://aiot-clean-api-pr.eufylife.com/app/devicerelation/get_device_list",new JSONObject().put("attribute",3),null);JSONObject data=response.optJSONObject("data");if(data==null)data=response;JSONArray list=data.optJSONArray("devices");if(list!=null)for(int i=0;i<list.length();i++){JSONObject item=list.getJSONObject(i).optJSONObject("device");if(item!=null&&device.equals(item.optString("device_sn"))&&item.optJSONObject("dps")!=null)decode(item.getJSONObject("dps"));}}catch(Exception ignored){}}
     synchronized void send(final String command)throws Exception{
@@ -63,11 +63,11 @@ final class EufyNative {
         if(!ready||!visible||mqtt==null||System.currentTimeMillis()-observed>90000)throw new IllegalArgumentException("Wait for the vacuum connection and a recent status.");
         if(phase.matches("sent|sending"))throw new IllegalArgumentException("A command is already waiting for confirmation.");
         if(!EufyProto.controlAllowed(command,state,error,tankOnly))throw new IllegalArgumentException(error==6011?"Refill the dock’s clean-water tank before starting cleaning.":"Check the vacuum in the Eufy app first.");
-        if("pause".equals(command)&&error==0&&!state.matches("cleaning|returning"))throw new IllegalArgumentException("The vacuum is not cleaning or returning.");
+        if("pause".equals(command)&&error==0&&!state.matches("cleaning|returning|mapping|cruising|remote"))throw new IllegalArgumentException("The vacuum has no active task to pause.");
         if("dock".equals(command)&&state.matches("docked|charging"))throw new IllegalArgumentException("The vacuum is already at its dock.");
         if("start".equals(command)&&state.equals("cleaning"))throw new IllegalArgumentException("The vacuum is already cleaning.");
         action=command;before=state;phase="sending";commandAt=System.currentTimeMillis();final EufyMqtt connection=mqtt;
-        io.execute(new Runnable(){public void run(){try{connection.send(command);synchronized(EufyNative.this){phase="sent";}}catch(Exception ignored){synchronized(EufyNative.this){phase="unconfirmed";}}}});
+        io.execute(new Runnable(){public void run(){try{connection.send(command);synchronized(EufyNative.this){if("sending".equals(phase))phase="sent";}}catch(Exception ignored){synchronized(EufyNative.this){phase="unconfirmed";}}}});
     }
     void confirm(final String command)throws Exception{
         if(!"start".equals(command)){send(command);return;}
